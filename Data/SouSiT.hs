@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, TupleSections, FlexibleInstances, UndecidableInstances #-}
+{-# LANGUAGE RankNTypes, TupleSections #-}
 
 module Data.SouSiT (
     -- * Sink
@@ -13,6 +13,7 @@ module Data.SouSiT (
     ($$),
     concatSources,
     (=+=),
+    (=+|=),
     BasicSource(..),
     BasicSource2(..),
     -- * Transform
@@ -76,12 +77,9 @@ feedSink sink _ = sink
 class Source src where
     transfer :: src a -> Sink a r -> r
 
--- | A alternative, more flexible, notation of a source.
-class Source2 src where
+-- | An additional typeclass for more flexible sources (allowing i.e. concats)
+class Source src => Source2 src where
     feedToSink :: src a -> Sink a r -> Sink a r
-
-instance Source2 src => Source src where
-    transfer src = closeSink . feedToSink src
 
 -- | Transfer the data from the source into the sink
 ($$) :: Source src => src a -> Sink a r -> r
@@ -102,9 +100,9 @@ concatSources2 src1 src2 = BasicSource2 (feedToSink src2 . feedToSink src1)
 infixl 3 =+=
 
 -- | Concatenates two sources.
-(+=) :: (Source2 src1, Source src2) => src1 a -> src2 a -> BasicSource a
-(+=) = concatSources
-infixl 3 +=
+(=+|=) :: (Source2 src1, Source src2) => src1 a -> src2 a -> BasicSource a
+(=+|=) = concatSources
+infixl 3 =+|=
 
 
 -- | A source with an applied transformer
@@ -116,8 +114,8 @@ instance Source BasicSource where
 data BasicSource2 a = BasicSource2 (forall r. Sink a r -> Sink a r)
 instance Source2 BasicSource2 where
     feedToSink (BasicSource2 f) = f
-
-
+instance Source BasicSource2 where
+    transfer src = closeSink . feedToSink src
 
 
 
