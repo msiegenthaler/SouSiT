@@ -11,6 +11,8 @@ module Data.SouSiT (
     (=||=),
     -- * Source
     Source,
+    transfer,
+    feedToSink,
     ($$),
     concatSources,
     (=+=),
@@ -121,7 +123,6 @@ instance Source2 BasicSource2 where
     feedToSink (BasicSource2 f) = f
 instance Source BasicSource2 where
     transfer src sink = closeSink `liftM` feedToSink src sink
-
 
 
 
