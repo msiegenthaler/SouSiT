@@ -2,85 +2,106 @@
 
 module Data.SouSit.File (
     -- * Sources
+    IOSource,
     fileSourceChar,
     fileSourceLine,
     fileSourceByteString,
     fileSourceWord8,
     -- * Sink
-    fileSinkChar
+    IOSink,
+    fileSinkChar,
+    fileSinkString,
+    fileSinkLine
 ) where
 
-import Data.Word
-import Data.SouSiT
 import System.IO
+import Control.Monad
+import Control.Applicative
 import qualified Data.ByteString as BS
+import Data.SouSiT
+import Data.Word
 
 
---TODO delete
-import Debug.Trace
-import Data.SouSiT.List
-import Data.SouSiT.List as T
+-- | Source for file IO operations
+type IOSource a = BasicSource2 IO a
 
-fileSource :: (forall r. Sink a r -> Handle -> IO (Sink a r)) -> FilePath -> BasicSource2 IO a
-fileSource handler path = BasicSource2 $ withFile path ReadMode . handler
+fileSourceT :: (forall r. Sink a IO r -> Handle -> IO (Sink a IO r)) -> FilePath -> IOSource a
+fileSourceT handler path = BasicSource2 $ withFile path ReadMode . handler
 
-fileSourceB :: (forall r. Sink a r -> Handle -> IO (Sink a r)) -> FilePath -> BasicSource2 IO a
+fileSourceB :: (forall r. Sink a IO r -> Handle -> IO (Sink a IO r)) -> FilePath -> IOSource a
 fileSourceB handler path = BasicSource2 $ withBinaryFile path ReadMode . handler
 
-
-readNext :: (Handle -> IO a) -> Sink a r -> Handle -> IO (Sink a r)
+readNext :: (Handle -> IO a) -> Sink a IO r -> Handle -> IO (Sink a IO r)
 readNext rd sink@(SinkCont f _) h = do
     eof <- hIsEOF h
     if eof then return sink
-           else do c <- rd h
-                   readNext rd (f c) h
+           else do e <- rd h
+                   next <- f e
+                   readNext rd next h
 readNext _ done h = return done
 
 
 -- | Creates a Source2 for the file read as characters.
-fileSourceChar :: FilePath -> BasicSource2 IO Char
-fileSourceChar = fileSource $ readNext hGetChar
+fileSourceChar :: FilePath -> IOSource Char
+fileSourceChar = fileSourceT $ readNext hGetChar
 
 -- | Creates a Source2 for the file read linewise as string
-fileSourceLine :: FilePath -> BasicSource2 IO String
-fileSourceLine = fileSource $ readNext hGetLine
+fileSourceLine :: FilePath -> IOSource String
+fileSourceLine = fileSourceT $ readNext hGetLine
 
 -- | Creates a Source2 for file read as ByteStrings (hGetSome).
-fileSourceByteString :: Int -> FilePath -> BasicSource2 IO BS.ByteString
+fileSourceByteString :: Int -> FilePath -> IOSource BS.ByteString
 fileSourceByteString chunk = fileSourceB $ readNext rd
     where rd h = BS.hGetSome h chunk
 
 -- | Creates a Source2 for file read as single bytes.
-fileSourceWord8 :: FilePath -> BasicSource2 IO Word8
+fileSourceWord8 :: FilePath -> IOSource Word8
 fileSourceWord8 = fileSourceB readWord8
 
-readWord8 :: Sink Word8 r -> Handle -> IO (Sink Word8 r)
+readWord8 :: Sink Word8 IO r -> Handle -> IO (Sink Word8 IO r)
 readWord8 sink@(SinkCont f _) h = do
     eof <- hIsEOF h
     if eof then return sink
            else do chunk <- BS.hGetSome h word8ChunkSize
-                   return $ BS.foldl feedSink sink chunk
+                   BS.foldl feedM (return sink) chunk
 readWord8 done h = return done
+
+feedM :: (Monad m, Applicative m) => m (Sink a m r) -> a -> m (Sink a m r)
+feedM ms i = ms >>= flip feedSink i
 
 word8ChunkSize = 256
 
 
 
+-- | Sink for file IO operations
+type IOSink a = Sink a IO ()
+
+fileSinkT :: (Handle -> a -> IO ()) -> FilePath -> IOSink a
+fileSinkT put path = SinkCont first noop
+    where first i = openFile path WriteMode >>= flip (runSink put) i
+          noop = return ()
+
+runSink :: (Handle -> a -> IO ()) -> Handle -> a -> IO (IOSink a)
+runSink put h i = put h i >> return next
+    where next = SinkCont (runSink put h) (hClose h)
+
 -- | Creates a sink that writes the Chars into the specified file.
-fileSinkChar :: FilePath -> Sink Char (IO ())
-fileSinkChar path = trace ("fileSinkFor " ++ path) $ fileSinkChar' path
-fileSinkChar' path = SinkCont (fs2' open) $ return ()
-    where open = openFile path WriteMode
+fileSinkChar :: FilePath -> IOSink Char
+fileSinkChar = fileSinkT hPutChar
+
+-- | Creates a sink that writes the input into the file (without adding newlines).
+fileSinkString :: FilePath -> IOSink String
+fileSinkString = fileSinkT hPutStr
+
+-- | Creates a sink that writes each input as a line into the file.
+fileSinkLine :: FilePath -> IOSink String
+fileSinkLine = fileSinkT hPutStrLn
 
 
-fs2' = trace "call to fs2" fs2
-fs2 :: IO Handle -> Char -> Sink Char (IO ())
-fs2 prev i = SinkCont (fs2 action) (action >>= hClose)
-    where action = do h <- prev
-                      print $ "Saving " ++ [i] --TODO
-                      hPutChar h i
-                      return h
 
 
---copy :: FilePath -> FilePath -> ()
-copy p1 p2 = fileSourceChar p1 $$ fileSinkChar p2
+
+
+
+
+
