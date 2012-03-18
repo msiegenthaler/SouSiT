@@ -4,6 +4,7 @@ module Data.SouSiT (
     -- * Sink
     Sink(..),
     closeSink,
+    feedSink,
     concatSink,
     (=|=),
     appendSink,
@@ -27,6 +28,8 @@ module Data.SouSiT (
 ) where
 
 import Data.Monoid
+import Control.Applicative
+import Control.Monad
 
 --- | Sink for data. Aggregates data to produce a single result (i.e. an IO).
 data Sink a r = SinkCont (a -> Sink a r) r
@@ -75,47 +78,49 @@ feedSink sink _ = sink
 
 -- | Something that produces data to be processed by a sink
 class Source src where
-    transfer :: src a -> Sink a r -> r
+    transfer :: Monad m => src m a -> Sink a r -> m r
 
 -- | An additional typeclass for more flexible sources (allowing i.e. concats)
 class Source src => Source2 src where
-    feedToSink :: src a -> Sink a r -> Sink a r
+    feedToSink :: Monad m => src m a -> Sink a r -> m (Sink a r)
 
 -- | Transfer the data from the source into the sink
-($$) :: Source src => src a -> Sink a r -> r
+($$) :: (Source src, Monad m) => src m a -> Sink a r -> m r
 ($$) = transfer
 infixl 0 $$
 
 -- | Concatenates two sources.
-concatSources :: (Source2 src1, Source src2) => src1 a -> src2 a -> BasicSource a
-concatSources src1 src2 = BasicSource (transfer src2 . feedToSink src1)
+concatSources :: (Source2 src1, Source src2, Monad m) => src1 m a -> src2 m a -> BasicSource m a
+concatSources src1 src2 = BasicSource f
+    where f sink = feedToSink src1 sink >>= transfer src2
 
 -- | Concatenates two sources yielding a Source2.
-concatSources2 :: (Source2 src1, Source2 src2) => src1 a -> src2 a -> BasicSource2 a
-concatSources2 src1 src2 = BasicSource2 (feedToSink src2 . feedToSink src1)
+concatSources2 :: (Source2 src1, Source2 src2, Monad m) => src1 m a -> src2 m a -> BasicSource2 m a
+concatSources2 src1 src2 = BasicSource2 f
+    where f sink = return sink >>= feedToSink src1 >>= feedToSink src2
 
 -- | Concatenates two sources.
-(=+=) :: (Source2 src1, Source2 src2) => src1 a -> src2 a -> BasicSource2 a
+(=+=) :: (Source2 src1, Source2 src2, Monad m) => src1 m a -> src2 m a -> BasicSource2 m a
 (=+=) = concatSources2
 infixl 3 =+=
 
 -- | Concatenates two sources.
-(=+|=) :: (Source2 src1, Source src2) => src1 a -> src2 a -> BasicSource a
+(=+|=) :: (Source2 src1, Source src2, Monad m) => src1 m a -> src2 m a -> BasicSource m a
 (=+|=) = concatSources
 infixl 3 =+|=
 
 
 -- | A source with an applied transformer
-data BasicSource a = BasicSource (forall r. Sink a r -> r)
+data BasicSource m a = BasicSource (forall r. Sink a r -> m r)
 instance Source BasicSource where
     transfer (BasicSource f) = f
 
 -- | A normal source of type Source2.
-data BasicSource2 a = BasicSource2 (forall r. Sink a r -> Sink a r)
+data BasicSource2 m a = BasicSource2 (forall r. Sink a r -> m (Sink a r))
 instance Source2 BasicSource2 where
     feedToSink (BasicSource2 f) = f
 instance Source BasicSource2 where
-    transfer src = closeSink . feedToSink src
+    transfer src sink = closeSink `liftM` feedToSink src sink
 
 
 
@@ -123,7 +128,7 @@ instance Source BasicSource2 where
 -- | A transformation onto a sink
 class Transform t where
     transformSink :: t a b -> Sink b r -> Sink a r
-    transformSource :: Source src => t a b -> src a -> BasicSource b
+    transformSource :: (Source src, Monad m) => t a b -> src m a -> BasicSource m b
     transformSource t src = BasicSource $ transfer src . transformSink t
 
 -- | merges two transforms into one
@@ -137,7 +142,7 @@ infixl 2 =$=
 infixl 2 =$
 
 -- | apply a transform to a source
-($=) :: (Transform t, Source src) => src a -> t a b -> BasicSource b
+($=) :: (Transform t, Source src, Monad m) => src m a -> t a b -> BasicSource m b
 ($=) = flip transformSource
 infixl 1 $=
 

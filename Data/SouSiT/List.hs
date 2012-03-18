@@ -8,8 +8,8 @@ module Data.SouSiT.List (
 import Data.SouSiT
 
 -- | A source containing the elements of the list
-listSource :: [a] -> BasicSource2 a
-listSource l = BasicSource2 $ feedList2Sink l
+listSource :: Monad m => [a] -> BasicSource2 m a
+listSource l = BasicSource2 $ return . feedList2Sink l
 
 feedList2Sink :: [a] -> Sink a r -> Sink a r
 feedList2Sink [] sink = sink
