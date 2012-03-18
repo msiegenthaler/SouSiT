@@ -1,10 +1,13 @@
 {-# LANGUAGE RankNTypes #-}
 
 module Data.SouSit.File (
+    -- * Sources
     fileSourceChar,
     fileSourceLine,
     fileSourceByteString,
-    fileSourceWord8
+    fileSourceWord8,
+    -- * Sink
+    fileSinkChar
 ) where
 
 import Data.Word
@@ -12,6 +15,11 @@ import Data.SouSiT
 import System.IO
 import qualified Data.ByteString as BS
 
+
+--TODO delete
+import Debug.Trace
+import Data.SouSiT.List
+import Data.SouSiT.List as T
 
 fileSource :: (forall r. Sink a r -> Handle -> IO (Sink a r)) -> FilePath -> BasicSource2 IO a
 fileSource handler path = BasicSource2 $ withFile path ReadMode . handler
@@ -55,3 +63,24 @@ readWord8 sink@(SinkCont f _) h = do
 readWord8 done h = return done
 
 word8ChunkSize = 256
+
+
+
+-- | Creates a sink that writes the Chars into the specified file.
+fileSinkChar :: FilePath -> Sink Char (IO ())
+fileSinkChar path = trace ("fileSinkFor " ++ path) $ fileSinkChar' path
+fileSinkChar' path = SinkCont (fs2' open) $ return ()
+    where open = openFile path WriteMode
+
+
+fs2' = trace "call to fs2" fs2
+fs2 :: IO Handle -> Char -> Sink Char (IO ())
+fs2 prev i = SinkCont (fs2 action) (action >>= hClose)
+    where action = do h <- prev
+                      print $ "Saving " ++ [i] --TODO
+                      hPutChar h i
+                      return h
+
+
+--copy :: FilePath -> FilePath -> ()
+copy p1 p2 = fileSourceChar p1 $$ fileSinkChar p2
