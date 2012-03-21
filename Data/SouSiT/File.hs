@@ -12,7 +12,8 @@ module Data.SouSiT.File (
     fileSinkChar,
     fileSinkString,
     fileSinkLine,
-    fileSinkByteString
+    fileSinkByteString,
+    fileSinkWord8Unbuffered
 ) where
 
 import System.IO
@@ -20,6 +21,7 @@ import Control.Monad
 import Control.Applicative
 import qualified Data.ByteString as BS
 import Data.SouSiT
+import qualified Data.SouSiT.Trans as T
 import Data.Word
 
 
@@ -110,7 +112,9 @@ fileSinkLine = fileSinkT hPutStrLn
 fileSinkByteString :: FilePath -> IOSink BS.ByteString
 fileSinkByteString = fileSinkB BS.hPut
 
-
+-- | Creates an unbuffered sink for writing bytes into a file.
+fileSinkWord8Unbuffered :: FilePath -> IOSink Word8
+fileSinkWord8Unbuffered path = T.map BS.singleton =$ fileSinkByteString path
 
 
 
