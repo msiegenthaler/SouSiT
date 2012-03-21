@@ -13,6 +13,7 @@ module Data.SouSiT.File (
     fileSinkString,
     fileSinkLine,
     fileSinkByteString,
+    fileSinkWord8,
     fileSinkWord8Unbuffered
 ) where
 
@@ -116,6 +117,10 @@ fileSinkByteString = fileSinkB BS.hPut
 -- | Creates an unbuffered sink for writing bytes into a file.
 fileSinkWord8Unbuffered :: FilePath -> IOSink Word8
 fileSinkWord8Unbuffered path = T.map BS.singleton =$ fileSinkByteString path
+
+-- | Creates a sink for writing bytes into a file. The first parameter is the size of the buffer.
+fileSinkWord8 :: Int -> FilePath -> IOSink Word8
+fileSinkWord8 bs path = T.buffer bs BS.empty BS.snoc =$ fileSinkByteString path
 
 
 
