@@ -2,7 +2,8 @@ module Data.SouSiT.Trans (
     take,
     takeUntil,
     takeUntilEq,
-    map
+    map,
+    accumulate
 ) where
 
 import Prelude hiding (take, map)
@@ -38,3 +39,8 @@ applyMapping :: Monad m => (a -> b) -> Sink b m r -> Sink a m r
 applyMapping _ (SinkDone r) = SinkDone r
 applyMapping f (SinkCont next done) = SinkCont next' done
     where next' = liftM (applyMapping f) . next . f
+
+-- | Accumulates all elements with the accumulator function.
+accumulate :: b -> (b -> a -> b) -> ComplexTransformer a b
+accumulate acc f = TransCont step [acc]
+    where step i = ([], accumulate (f acc i) f)
