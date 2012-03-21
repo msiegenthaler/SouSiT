@@ -45,10 +45,10 @@ Cabal-version:       >=1.2
 
 Library
   -- Modules exported by the library.
-  Exposed-modules: Data.SouSiT
+  Exposed-modules: Data.SouSiT, Data.SouSiT.Trans, Data.SouSiT.List, Data.SouSiT.File
   
   -- Packages needed in order to build this package.
-  Build-depends: base > 4
+  Build-depends: base > 4, bytestring
   
   -- Modules not exported by this package.
   -- Other-modules:       
