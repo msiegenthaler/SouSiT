@@ -1,0 +1,13 @@
+Haskell library for Sources, Sinks and Transformers
+
+Allows to build pipelines such as
+  listSource [1..10] $$ T.map(+1) =$= T.buffer 3 0 (+) =$ listSink
+
+Available Sources at the moment:
+ - List
+ - File
+
+Available Sinks at the moment:
+ - List
+ - File
+
