@@ -48,7 +48,7 @@ Library
   Exposed-modules: Data.SouSiT
   
   -- Packages needed in order to build this package.
-  Build-depends: base 
+  Build-depends: base > 4
   
   -- Modules not exported by this package.
   -- Other-modules:       
