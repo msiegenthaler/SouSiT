@@ -66,7 +66,8 @@ readWord8 sink@(SinkCont f _) h = do
     eof <- hIsEOF h
     if eof then return sink
            else do chunk <- BS.hGetSome h word8ChunkSize
-                   BS.foldl feedM (return sink) chunk
+                   sink' <- BS.foldl feedM (return sink) chunk
+                   readWord8 sink' h
 readWord8 done h = return done
 
 feedM :: (Monad m, Applicative m) => m (Sink a m r) -> a -> m (Sink a m r)
