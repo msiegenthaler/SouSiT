@@ -3,10 +3,11 @@ module Data.SouSiT.Trans (
     takeUntil,
     takeUntilEq,
     map,
-    accumulate
+    accumulate,
+    buffer
 ) where
 
-import Prelude hiding (take, map)
+import Prelude hiding (take, map, id)
 import Control.Monad
 import Data.SouSiT
 
@@ -44,3 +45,19 @@ applyMapping f (SinkCont next done) = SinkCont next' done
 accumulate :: b -> (b -> a -> b) -> ComplexTransformer a b
 accumulate acc f = TransCont step [acc]
     where step i = ([], accumulate (f acc i) f)
+
+-- | Accumulates up to n elements with the accumulator function and then releases it.
+buffer :: Int -> b -> (b -> a -> b) -> ComplexTransformer a b
+buffer initN initAcc f | initN < 1 = error $ "Cannot buffer " ++ show initN ++ " elements"
+                       | otherwise = step initN initAcc
+    where step 1 acc = TransCont next [acc]
+            where next i = ([f acc i], step initN initAcc)
+          step n acc = TransCont next [acc] 
+            where next i = ([], step (n-1) (f acc i))
+
+
+
+
+
+
+
