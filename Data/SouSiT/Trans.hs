@@ -1,10 +1,12 @@
 module Data.SouSiT.Trans (
     take,
     takeUntil,
-    takeUntilEq
+    takeUntilEq,
+    map
 ) where
 
-import Prelude hiding (take)
+import Prelude hiding (take, map)
+import Control.Monad
 import Data.SouSiT
 
 -- | Takes only the first n inputs, then returns done.
@@ -22,3 +24,17 @@ takeUntil p = TransCont (step []) []
 -- | Takes inputs until the input matches the argument. The matching input is not passed on.
 takeUntilEq :: Eq a => a -> ComplexTransformer a a
 takeUntilEq e = takeUntil (e ==)
+
+
+-- | Transforms each input individually by applying the function.
+map :: (a -> b) -> MappingTransformer a b
+map = MappingTransformer
+
+data MappingTransformer a b = MappingTransformer (a -> b)
+instance Transform MappingTransformer where
+    transformSink (MappingTransformer f) = applyMapping f
+
+applyMapping :: Monad m => (a -> b) -> Sink b m r -> Sink a m r
+applyMapping _ (SinkDone r) = SinkDone r
+applyMapping f (SinkCont next done) = SinkCont next' done
+    where next' = liftM (applyMapping f) . next . f
