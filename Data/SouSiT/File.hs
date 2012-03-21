@@ -81,7 +81,7 @@ word8ChunkSize = 256
 -- | Sink for file IO operations
 type IOSink a = Sink a IO ()
 
-ioSink :: (IO Handle) -> (Handle -> a -> IO ()) -> IOSink a
+ioSink :: IO Handle -> (Handle -> a -> IO ()) -> IOSink a
 ioSink open put = SinkCont first noop
     where first i = open >>= flip (runIOSink put) i
           noop = return ()

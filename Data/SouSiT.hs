@@ -77,7 +77,7 @@ concatSink s1@(SinkDone r1) (SinkCont f2 r2) = SinkCont next done
     where next = fmap (concatSink s1) . f2
           done = (,) <$> r1 <*> r2
 concatSink (SinkCont f1 r1) s2               = SinkCont next done
-    where next = fmap (flip concatSink s2) . f1
+    where next = fmap (`concatSink` s2) . f1
           done = (,) <$> r1 <*> closeSink s2
 
 -- | Concatenates two sinks that produce a monoid.
@@ -127,7 +127,7 @@ concatSources src1 src2 = BasicSource f
 -- | Concatenates two sources yielding a Source2.
 concatSources2 :: (Source2 src1, Source2 src2, Monad m) => src1 m a -> src2 m a -> BasicSource2 m a
 concatSources2 src1 src2 = BasicSource2 f
-    where f sink = return sink >>= feedToSink src1 >>= feedToSink src2
+    where f sink = feedToSink src1 sink >>= feedToSink src2
 
 -- | Concatenates two sources.
 (=+=) :: (Source2 src1, Source2 src2, Monad m) => src1 m a -> src2 m a -> BasicSource2 m a
