@@ -1,6 +1,6 @@
 {-# LANGUAGE RankNTypes #-}
 
-module Data.SouSit.File (
+module Data.SouSiT.File (
     -- * Sources
     IOSource,
     fileSourceChar,
@@ -11,7 +11,8 @@ module Data.SouSit.File (
     IOSink,
     fileSinkChar,
     fileSinkString,
-    fileSinkLine
+    fileSinkLine,
+    fileSinkByteString
 ) where
 
 import System.IO
@@ -54,7 +55,7 @@ fileSourceByteString :: Int -> FilePath -> IOSource BS.ByteString
 fileSourceByteString chunk = fileSourceB $ readNext rd
     where rd h = BS.hGetSome h chunk
 
--- | Creates a Source2 for file read as single bytes.
+-- | Creates a Source2 for file read as single bytes (buffered).
 fileSourceWord8 :: FilePath -> IOSource Word8
 fileSourceWord8 = fileSourceB readWord8
 
@@ -76,14 +77,22 @@ word8ChunkSize = 256
 -- | Sink for file IO operations
 type IOSink a = Sink a IO ()
 
-fileSinkT :: (Handle -> a -> IO ()) -> FilePath -> IOSink a
-fileSinkT put path = SinkCont first noop
-    where first i = openFile path WriteMode >>= flip (runSink put) i
+ioSink :: (IO Handle) -> (Handle -> a -> IO ()) -> IOSink a
+ioSink open put = SinkCont first noop
+    where first i = open >>= flip (runIOSink put) i
           noop = return ()
 
-runSink :: (Handle -> a -> IO ()) -> Handle -> a -> IO (IOSink a)
-runSink put h i = put h i >> return next
-    where next = SinkCont (runSink put h) (hClose h)
+runIOSink :: (Handle -> a -> IO ()) -> Handle -> a -> IO (IOSink a)
+runIOSink put h i = put h i >> return next
+    where next = SinkCont (runIOSink put h) (hClose h)
+
+fileSinkT :: (Handle -> a -> IO ()) -> FilePath -> IOSink a
+fileSinkT put path = ioSink open put
+    where open = openFile path WriteMode
+
+fileSinkB :: (Handle -> a -> IO ()) -> FilePath -> IOSink a
+fileSinkB put path = ioSink open put
+    where open = openBinaryFile path WriteMode
 
 -- | Creates a sink that writes the Chars into the specified file.
 fileSinkChar :: FilePath -> IOSink Char
@@ -97,8 +106,9 @@ fileSinkString = fileSinkT hPutStr
 fileSinkLine :: FilePath -> IOSink String
 fileSinkLine = fileSinkT hPutStrLn
 
-
-
+-- | Creates a sink that writes the ByteStrings into the file.
+fileSinkByteString :: FilePath -> IOSink BS.ByteString
+fileSinkByteString = fileSinkB BS.hPut
 
 
 
