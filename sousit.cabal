@@ -40,7 +40,7 @@ Build-type:          Simple
 -- Extra-source-files:  
 
 -- Constraint on the version of Cabal needed to build this package.
-Cabal-version:       >=1.2
+Cabal-version:       >= 1.9.2 
 
 
 Library
@@ -56,3 +56,10 @@ Library
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:         
   
+
+Test-Suite sousit-test
+  Type: exitcode-stdio-1.0
+  Hs-source-dirs: test
+  Main-Is: TransTest.hs
+  Build-Depends: base > 4, mtl, sousit,
+                 QuickCheck > 2, test-framework >= 0.3.3, test-framework-quickcheck2 >= 0.2.9  
