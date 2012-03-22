@@ -16,11 +16,12 @@ type S a = BasicSource2 Identity a
 listSource :: [Int] -> BasicSource2 Identity Int
 listSource = L.listSource
 
-listSink :: Sink Int Identity [Int]
+listSink :: Sink a Identity [a]
 listSink = L.listSink
 
 run = runIdentity
 
+transList :: Transform t => t Int a -> [Int] -> [a]
 transList t l = run (listSource l $$ t =$ listSink)
 
 -- take
@@ -50,6 +51,19 @@ takeUntilEqElNotInListIsInput d e = not (elem e d) ==> transList (T.takeUntilEq 
 
 takeUntilEqFirstIsEmpty d = not (null d) ==> transList (T.takeUntilEq (head d)) d == []
 
+-- map
+mapIdDoesNotChangeInput d = transList (T.map id) d == d
+
+mapBehavesTheSameAsMapOnList d = transList (T.map (+1)) d == map (+1) d
+
+-- accumulate
+accumulateConsReturnsReversedInputAsFirstElement d = l == [reverse d]
+	where l = transList (T.accumulate [] (flip (:))) d
+
+accumulateAlwaysReturnsASingleElement d = length (transList (T.accumulate () noop) d) == 1
+	where noop _ _ = ()
+
+
 --Main
 main = defaultMain tests
 
@@ -70,5 +84,13 @@ tests =
       	testProperty "takeUntilEq 5th element is same as take 4" takeUntilEq5thElementIsEqTake4,
       	testProperty "takeUntilEq element not in list is input" takeUntilEqElNotInListIsInput,
       	testProperty "takeUntilEq first element is []" takeUntilEqFirstIsEmpty
+      ],
+      testGroup "Trans.map" [
+      	testProperty "map id does not change input" mapIdDoesNotChangeInput,
+      	testProperty "map behaves equal to map on list" mapBehavesTheSameAsMapOnList
+      ],
+      testGroup "Trans.accumulate" [
+      	testProperty "accumulate [] (flip (:)) returns the reversed input list as first element" accumulateConsReturnsReversedInputAsFirstElement,
+      	testProperty "accumulate always returns a single element" accumulateAlwaysReturnsASingleElement
       ]
     ]
