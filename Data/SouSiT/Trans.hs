@@ -53,9 +53,20 @@ applyMappingState f (SinkCont next done) = SinkCont next' done
     where next' i = liftM (transformSink f') $ next r
             where (r, f') = f i
 
+mergeMappingState :: MappingStateTransformer a b -> MappingStateTransformer b c -> MappingStateTransformer a c
+mergeMappingState (MappingStateTransformer f1) (MappingStateTransformer f2)= MappingStateTransformer step
+    where step i = (r2, mergeMappingState t1 t2)
+            where (r1, t1) = f1 i
+                  (r2, t2) = f2 r1
 
 instance TransformMerger ComplexTransformer ComplexTransformer ComplexTransformer where
     (=$=) = mergeComplex
+
+instance TransformMerger MappingTransformer MappingTransformer MappingTransformer where
+    (MappingTransformer f) =$= (MappingTransformer g) = MappingTransformer (g . f)
+
+instance TransformMerger MappingStateTransformer MappingStateTransformer MappingStateTransformer where
+    (=$=) = mergeMappingState
 
 
 

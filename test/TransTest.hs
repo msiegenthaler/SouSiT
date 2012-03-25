@@ -13,7 +13,7 @@ import qualified Data.SouSiT.Trans as T
 
 type S a = BasicSource2 Identity a
 
-listSource :: [Int] -> BasicSource2 Identity Int
+listSource :: [a] -> BasicSource2 Identity a
 listSource = L.listSource
 
 listSink :: Sink a Identity [a]
@@ -91,6 +91,21 @@ zipWithIndexSndIs0toN d = not (null d) ==> l == [0..((length d) - 1)]
     where l = fmap snd $ transList T.zipWithIndex d
 
 
+-- Merge
+mergeOfTwoOfMapShouldBeSameAsSeperate = mergeCombos [T.map (*2), T.map (+1)]
+
+mergeOfTwoOfZipWithIndexShouldBeSameAsSeperate d = mergeSameAsSeperate d T.zipWithIndex T.zipWithIndex
+
+
+mergeCombos ts d = and $ fmap (uncurry (mergeSameAsSeperate d)) cmbs
+    where cmbs = [ (t1, t2) | t1 <- ts, t2 <- ts]
+
+mergeSameAsSeperate :: (TransformMerger t1 t2 t, Eq b) => [Int] -> t1 Int a -> t2 a b -> Bool
+mergeSameAsSeperate d t1 t2 = runIdentity (listSource d $$ t1 =$= t2 =$ listSink) == l2
+    where l1 = runIdentity (listSource d $$ t1 =$ listSink)
+          l2 = runIdentity (listSource l1 $$ t2 =$ listSink)
+
+
 --Main
 main = defaultMain tests
 
@@ -98,8 +113,8 @@ tests :: [Test]
 tests =
     [
       testGroup "Trans.map" [
-        testProperty "map id does not change input" mapIdDoesNotChangeInput,
-        testProperty "map behaves equal to map on list" mapBehavesTheSameAsMapOnList
+        testProperty "with id does not change input" mapIdDoesNotChangeInput,
+        testProperty "behaves equal to map on list" mapBehavesTheSameAsMapOnList
       ],
       testGroup "Trans.zipWithIndex" [
         testProperty "does not change number of elements" zipWithIndexDoesNotChangeNumberOfElements,
@@ -132,6 +147,10 @@ tests =
         testProperty "does not change elements (when concat'ed)" bufferDoesNotChangeElements,
         testProperty "makes blocks with specified size" bufferMakesBlocksWithSpecifiedSize,
         testProperty "last block has n mod x elements" buffersLastBlockHasNmodXElements
+      ],
+      testGroup "Trans.=$=" [
+        testProperty "of two maps should be same as seperate application of both" mergeOfTwoOfMapShouldBeSameAsSeperate,
+        testProperty "of two zipWithIndex should be same as seperate application of both" mergeOfTwoOfZipWithIndexShouldBeSameAsSeperate
       ]
     ]
 
