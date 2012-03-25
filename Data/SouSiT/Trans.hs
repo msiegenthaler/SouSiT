@@ -1,4 +1,7 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module Data.SouSiT.Trans (
+    ComplexTransformer(..),
     take,
     takeUntil,
     takeUntilEq,
@@ -10,6 +13,43 @@ module Data.SouSiT.Trans (
 import Prelude hiding (take, map, id)
 import Control.Monad
 import Data.SouSiT
+
+-- | Transformation that create 0..n elements out of an input and may have state
+data ComplexTransformer a b = TransCont (a -> ([b], ComplexTransformer a b)) [b]
+                            | TransEnd [b]
+instance Transform ComplexTransformer where
+    transformSink = applyComplex
+
+applyComplex :: Monad m => ComplexTransformer a b -> Sink b m r -> Sink a m r
+applyComplex _           (SinkDone r) = SinkDone r
+applyComplex (TransEnd es)       sink = SinkDone $ feedSinkList es sink >>= closeSink
+applyComplex (TransCont tfn tfe) sink = SinkCont next end
+    where next i = liftM (applyComplex trans') (feedSinkList es sink)
+            where (es, trans') = tfn i
+          end = feedSinkList tfe sink >>= closeSink
+
+mergeComplex = undefined --TODO
+
+-- | Transformation that treats each element seperatly
+data MappingTransformer a b = MappingTransformer (a -> b)
+instance Transform MappingTransformer where
+    transformSink (MappingTransformer f) = applyMapping f
+
+applyMapping :: Monad m => (a -> b) -> Sink b m r -> Sink a m r
+applyMapping _ (SinkDone r) = SinkDone r
+applyMapping f (SinkCont next done) = SinkCont next' done
+    where next' = liftM (applyMapping f) . next . f
+
+
+
+instance TransformMerger ComplexTransformer ComplexTransformer ComplexTransformer where
+    (=$=) = mergeComplex
+
+
+
+-- | Transforms each input individually by applying the function.
+map :: (a -> b) -> MappingTransformer a b
+map = MappingTransformer
 
 -- | Takes only the first n inputs, then returns done.
 take :: (Num n, Ord n) => n -> ComplexTransformer a a
@@ -27,19 +67,6 @@ takeUntil p = TransCont (step []) []
 takeUntilEq :: Eq a => a -> ComplexTransformer a a
 takeUntilEq e = takeUntil (e ==)
 
-
--- | Transforms each input individually by applying the function.
-map :: (a -> b) -> MappingTransformer a b
-map = MappingTransformer
-
-data MappingTransformer a b = MappingTransformer (a -> b)
-instance Transform MappingTransformer where
-    transformSink (MappingTransformer f) = applyMapping f
-
-applyMapping :: Monad m => (a -> b) -> Sink b m r -> Sink a m r
-applyMapping _ (SinkDone r) = SinkDone r
-applyMapping f (SinkCont next done) = SinkCont next' done
-    where next' = liftM (applyMapping f) . next . f
 
 -- | Accumulates all elements with the accumulator function.
 accumulate :: b -> (b -> a -> b) -> ComplexTransformer a b

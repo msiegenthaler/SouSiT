@@ -24,9 +24,7 @@ module Data.SouSiT (
     Transform(..),
     (=$),
     ($=),
-    (=$=),
-    ComplexTransformer(..),
-    genericMerge
+    TransformMerger(..)
 ) where
 
 import Data.Monoid
@@ -164,25 +162,6 @@ infixl 2 =$
 ($=) = flip transformSource
 infixl 1 $=
 
-
--- | Transformation that create 0..n elements out of an input and may have state
-data ComplexTransformer a b = TransCont (a -> ([b], ComplexTransformer a b)) [b]
-                            | TransEnd [b]
-instance Transform ComplexTransformer where
-    transformSink = applyComplex
-
-applyComplex :: Monad m => ComplexTransformer a b -> Sink b m r -> Sink a m r
-applyComplex _           (SinkDone r) = SinkDone r
-applyComplex (TransEnd es)       sink = SinkDone $ feedSinkList es sink >>= closeSink
-applyComplex (TransCont tfn tfe) sink = SinkCont next end
-    where next i = liftM (applyComplex trans') (feedSinkList es sink)
-            where (es, trans') = tfn i
-          end = feedSinkList tfe sink >>= closeSink
-
-mergeComplex = undefined
-
-instance TransformMerger ComplexTransformer ComplexTransformer ComplexTransformer where
-    (=$=) = mergeComplex
 
 -- | A merged application of two transforms.
 data MergedTransform a b = MergedTransform (forall r m . Monad m => Sink b m r -> Sink a m r)
