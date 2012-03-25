@@ -68,7 +68,14 @@ instance TransformMerger MappingTransformer MappingTransformer MappingTransforme
 instance TransformMerger MappingStateTransformer MappingStateTransformer MappingStateTransformer where
     (=$=) = mergeMappingState
 
+instance TransformMerger MappingStateTransformer MappingTransformer MappingStateTransformer where
+    a =$= b = mergeMappingState a (mappingToMappingState b)
+instance TransformMerger MappingTransformer MappingStateTransformer MappingStateTransformer where
+    (=$=) = mergeMappingState . mappingToMappingState
 
+mappingToMappingState :: MappingTransformer a b -> MappingStateTransformer a b
+mappingToMappingState (MappingTransformer f) = MappingStateTransformer step
+    where step i = (f i, MappingStateTransformer step)
 
 -- | Transforms each input individually by applying the function.
 map :: (a -> b) -> MappingTransformer a b
