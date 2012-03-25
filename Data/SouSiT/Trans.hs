@@ -21,23 +21,23 @@ import Control.Monad
 import Data.SouSiT
 
 -- | Transformation that create 0..n elements out of an input and may have state
-data PureTransform a b = TransCont (a -> ([b], PureTransform a b)) [b]
-                            | TransEnd [b]
+data PureTransform a b = PTCont (a -> ([b], PureTransform a b)) [b]
+                       | PTEnd [b]
 instance Transform PureTransform where
     transformSink = applyPT
 
 applyPT :: Monad m => PureTransform a b -> Sink b m r -> Sink a m r
 applyPT _           (SinkDone r) = SinkDone r
-applyPT (TransEnd es)       sink = SinkDone $ feedSinkList es sink >>= closeSink
-applyPT (TransCont tfn tfe) sink = SinkCont next end
+applyPT (PTEnd es)       sink = SinkDone $ feedSinkList es sink >>= closeSink
+applyPT (PTCont tfn tfe) sink = SinkCont next end
     where next i = liftM (applyPT trans') (feedSinkList es sink)
             where (es, trans') = tfn i
           end = feedSinkList tfe sink >>= closeSink
 
 mergePT :: PureTransform a b -> PureTransform b c -> PureTransform a c
-mergePT _ (TransEnd r) = TransEnd r
-mergePT (TransEnd r) t2 = TransEnd $ endPT $ feedPT r t2
-mergePT (TransCont f d) t2 = TransCont next' done'
+mergePT _ (PTEnd r) = PTEnd r
+mergePT (PTEnd r) t2 = PTEnd $ endPT $ feedPT r t2
+mergePT (PTCont f d) t2 = PTCont next' done'
     where next' i = (bs, mergePT t1' t2')
             where (as, t1') = f i
                   (bs, t2') = feedPT as t2
@@ -45,24 +45,24 @@ mergePT (TransCont f d) t2 = TransCont next' done'
 
 endPT (bs, t) = bs ++ closePT t
 
-closePT (TransEnd bs) = bs
-closePT (TransCont _ bs) = bs
+closePT (PTEnd bs) = bs
+closePT (PTCont _ bs) = bs
 
 feedPT :: [a] -> PureTransform a b -> ([b], PureTransform a b)
 feedPT es t = step [] es t
     where step outs []     t = (outs, t)
-          step outs (e:es) (TransCont next done) = step (outs ++ r) es t'
+          step outs (e:es) (PTCont next done) = step (outs ++ r) es t'
                 where (r, t') = next e
           step outs rest   done = (outs, done)  --rest is lost
 
 mappingStateToPT :: MappingStateTransformer a b -> PureTransform a b
-mappingStateToPT (MappingStateTransformer f) = TransCont step []
+mappingStateToPT (MappingStateTransformer f) = PTCont step []
     where step i = ([e], mappingStateToPT t')
             where (e, t') = f i
 
 mappingToPT :: MappingTransformer a b -> PureTransform a b
-mappingToPT (MappingTransformer f) = TransCont step []
-    where step i = ([f i], TransCont step [])
+mappingToPT (MappingTransformer f) = PTCont step []
+    where step i = ([f i], PTCont step [])
 
 
 -- | Transformation that treats each element seperatly
@@ -136,14 +136,14 @@ zipWithIndex = MappingStateTransformer $ step 0
 
 -- | Takes only the first n inputs, then returns done.
 take :: (Num n, Ord n) => n -> PureTransform a a
-take n | n > 0          = TransCont (\i -> ([i], take $ n - 1)) []
-            | otherwise = TransEnd []
+take n | n > 0          = PTCont (\i -> ([i], take $ n - 1)) []
+            | otherwise = PTEnd []
 
 -- | Takes inputs until the input fullfils the predicate. The matching input is not passed on.
 takeUntil :: Eq a => (a -> Bool) -> PureTransform a a
-takeUntil p = TransCont (step []) []
-    where step sf e | p e       = (sf, TransEnd [])
-                    | otherwise = ([], TransCont (step sf') sf')
+takeUntil p = PTCont (step []) []
+    where step sf e | p e       = (sf, PTEnd [])
+                    | otherwise = ([], PTCont (step sf') sf')
                 where sf' = sf ++ [e]
 
 -- | Takes inputs until the input matches the argument. The matching input is not passed on.
@@ -153,16 +153,16 @@ takeUntilEq e = takeUntil (e ==)
 
 -- | Accumulates all elements with the accumulator function.
 accumulate :: b -> (b -> a -> b) -> PureTransform a b
-accumulate acc f = TransCont step [acc]
+accumulate acc f = PTCont step [acc]
     where step i = ([], accumulate (f acc i) f)
 
 -- | Accumulates up to n elements with the accumulator function and then releases it.
 buffer :: Int -> b -> (b -> a -> b) -> PureTransform a b
 buffer initN initAcc f | initN < 1 = error $ "Cannot buffer " ++ show initN ++ " elements"
                        | otherwise = step initN initAcc
-    where step 1 acc = TransCont next [acc]
+    where step 1 acc = PTCont next [acc]
             where next i = ([f acc i], step initN initAcc)
-          step n acc = TransCont next [acc] 
+          step n acc = PTCont next [acc] 
             where next i = ([], step (n-1) (f acc i))
 
 
