@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, TupleSections #-}
+{-# LANGUAGE RankNTypes, TupleSections, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, UndecidableInstances #-}
 
 module Data.SouSiT (
     -- * Sink
@@ -22,12 +22,11 @@ module Data.SouSiT (
     BasicSource2(..),
     -- * Transform
     Transform(..),
-    (=$=),
     (=$),
     ($=),
+    (=$=),
     ComplexTransformer(..),
-    MergedTransform,
-    mergeTransforms
+    genericMerge
 ) where
 
 import Data.Monoid
@@ -145,9 +144,15 @@ infixl 3 =+|=
 
 -- | A transformation onto a sink
 class Transform t where
+    -- | apply transform to sink
     transformSink :: Monad m => t a b -> Sink b m r -> Sink a m r
+    -- | apply transform to source
     transformSource :: (Source src, Monad m) => t a b -> src m a -> BasicSource m b
     transformSource t src = BasicSource $ transfer src . transformSink t
+
+class (Transform t1, Transform t2, Transform tr) => TransformMerger t1 t2 tr | t1 t2 -> tr where
+    -- | merges two transforms into one
+    (=$=) :: t1 a b -> t2 b c -> tr a c
 
 -- | apply a transform to a sink
 (=$) :: (Transform t, Monad m) => t a b -> Sink b m r -> Sink a m r
@@ -158,21 +163,6 @@ infixl 2 =$
 ($=) :: (Transform t, Source src, Monad m) => src m a -> t a b -> BasicSource m b
 ($=) = flip transformSource
 infixl 1 $=
-
-
--- | A merged application of two transforms.
-data MergedTransform a b = MergedTransform (forall r m . Monad m => Sink b m r -> Sink a m r)
-instance Transform MergedTransform where
-    transformSink (MergedTransform f) = f
-
--- | merges two transforms into one
-(=$=) :: (Transform t1, Transform t2) => t1 a b -> t2 b c -> MergedTransform a c
-(=$=) = mergeTransforms
-infixl 2 =$=
-
--- | merges two transforms into one
-mergeTransforms :: (Transform t1, Transform t2) => t1 a b -> t2 b c -> MergedTransform a c
-mergeTransforms t1 t2 = MergedTransform $ transformSink t1 . transformSink t2
 
 
 -- | Transformation that create 0..n elements out of an input and may have state
@@ -188,4 +178,17 @@ applyComplex (TransCont tfn tfe) sink = SinkCont next end
     where next i = liftM (applyComplex trans') (feedSinkList es sink)
             where (es, trans') = tfn i
           end = feedSinkList tfe sink >>= closeSink
+
+mergeComplex = undefined
+
+instance TransformMerger ComplexTransformer ComplexTransformer ComplexTransformer where
+    (=$=) = mergeComplex
+
+-- | A merged application of two transforms.
+data MergedTransform a b = MergedTransform (forall r m . Monad m => Sink b m r -> Sink a m r)
+instance Transform MergedTransform where
+    transformSink (MergedTransform f) = f
+
+genericMerge :: (Transform t1, Transform t2) => t1 a b -> t2 b c -> MergedTransform a c
+genericMerge t1 t2 = MergedTransform $ transformSink t1 . transformSink t2
 
