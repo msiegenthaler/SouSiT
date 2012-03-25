@@ -1,8 +1,12 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Data.SouSiT.Trans (
+    -- * Transform instances
     ComplexTransformer(..),
+    MappingTransformer(..),
     MappingStateTransformer(..),
+
+    -- * Concrete tranformers
     map,
     zipWithIndex,
     take,
@@ -59,6 +63,13 @@ mergeMappingState (MappingStateTransformer f1) (MappingStateTransformer f2)= Map
             where (r1, t1) = f1 i
                   (r2, t2) = f2 r1
 
+mappingToMappingState :: MappingTransformer a b -> MappingStateTransformer a b
+mappingToMappingState (MappingTransformer f) = MappingStateTransformer step
+    where step i = (f i, MappingStateTransformer step)
+
+
+-- TransformMerger instances
+
 instance TransformMerger ComplexTransformer ComplexTransformer ComplexTransformer where
     (=$=) = mergeComplex
 
@@ -73,9 +84,7 @@ instance TransformMerger MappingStateTransformer MappingTransformer MappingState
 instance TransformMerger MappingTransformer MappingStateTransformer MappingStateTransformer where
     (=$=) = mergeMappingState . mappingToMappingState
 
-mappingToMappingState :: MappingTransformer a b -> MappingStateTransformer a b
-mappingToMappingState (MappingTransformer f) = MappingStateTransformer step
-    where step i = (f i, MappingStateTransformer step)
+
 
 -- | Transforms each input individually by applying the function.
 map :: (a -> b) -> MappingTransformer a b
