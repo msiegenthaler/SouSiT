@@ -101,14 +101,14 @@ mergeOfMapWithZipWithIndexShouldBeSameAsSeperate d =
       mergeSameAsSeperate d T.zipWithIndex (T.map swap)
     where swap (a, b) = (b, a)
 
-mergeOfComplexShouldBeSameAsSeperate = mergeCombos [
+mergeOfPureShouldBeSameAsSeperate = mergeCombos [
       T.take 10, T.take 3,
       T.takeUntil (>10), T.takeUntilEq 1,
       T.accumulate 0 (+), T.accumulate 1 (*),
       T.buffer 3 0 (+)
     ]
 
-mergeOfComplexWithMappingShouldBeSameAsSeperate d =
+mergeOfPureWithMappingShouldBeSameAsSeperate d =
         mergeTransTuples cmbs d && mergeTransTuples (fmap swap cmbs) d
     where cs = [T.take 10, T.take 3,
                 T.takeUntil (>10), T.takeUntilEq 1,
@@ -117,7 +117,7 @@ mergeOfComplexWithMappingShouldBeSameAsSeperate d =
           ms = [T.map (+1), T.map (*2)]
           cmbs = [ (t1, t2) | t1 <- cs, t2 <- ms ]
 
-mergeOfComplexWithZipWithIndexShouldBeSameAsSeperate d =
+mergeOfPureWithZipWithIndexShouldBeSameAsSeperate d =
         mergeTransTuples cmbs d && mergeTransTuples (fmap swap cmbs) d
     where cs = [T.take 10, T.take 3]
           ms = [T.zipWithIndex]
@@ -183,9 +183,9 @@ tests =
         testProperty "of two maps should be same as seperate application" mergeOfTwoOfMapShouldBeSameAsSeperate,
         testProperty "of two zipWithIndex should be same as seperate application" mergeOfTwoOfZipWithIndexShouldBeSameAsSeperate,
         testProperty "of map and zipWithIndex should be same as seperate application" mergeOfMapWithZipWithIndexShouldBeSameAsSeperate,
-        testProperty "of complex Ops should be same as seperate application" mergeOfComplexShouldBeSameAsSeperate,
-        testProperty "of complex with map should be the same as seperate application" mergeOfComplexWithMappingShouldBeSameAsSeperate,
-        testProperty "of complex with zipWithIndex should be the same as seperate application" mergeOfComplexWithZipWithIndexShouldBeSameAsSeperate
+        testProperty "of pure Ops should be same as seperate application" mergeOfPureShouldBeSameAsSeperate,
+        testProperty "of pure with map should be the same as seperate application" mergeOfPureWithMappingShouldBeSameAsSeperate,
+        testProperty "of pure with zipWithIndex should be the same as seperate application" mergeOfPureWithZipWithIndexShouldBeSameAsSeperate
       ]
     ]
 

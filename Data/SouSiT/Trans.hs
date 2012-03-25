@@ -2,7 +2,7 @@
 
 module Data.SouSiT.Trans (
     -- * Transform instances
-    ComplexTransformer(..),
+    PureTransform(..),
     MappingTransformer(..),
     MappingStateTransformer(..),
 
@@ -21,47 +21,47 @@ import Control.Monad
 import Data.SouSiT
 
 -- | Transformation that create 0..n elements out of an input and may have state
-data ComplexTransformer a b = TransCont (a -> ([b], ComplexTransformer a b)) [b]
+data PureTransform a b = TransCont (a -> ([b], PureTransform a b)) [b]
                             | TransEnd [b]
-instance Transform ComplexTransformer where
-    transformSink = applyComplex
+instance Transform PureTransform where
+    transformSink = applyPT
 
-applyComplex :: Monad m => ComplexTransformer a b -> Sink b m r -> Sink a m r
-applyComplex _           (SinkDone r) = SinkDone r
-applyComplex (TransEnd es)       sink = SinkDone $ feedSinkList es sink >>= closeSink
-applyComplex (TransCont tfn tfe) sink = SinkCont next end
-    where next i = liftM (applyComplex trans') (feedSinkList es sink)
+applyPT :: Monad m => PureTransform a b -> Sink b m r -> Sink a m r
+applyPT _           (SinkDone r) = SinkDone r
+applyPT (TransEnd es)       sink = SinkDone $ feedSinkList es sink >>= closeSink
+applyPT (TransCont tfn tfe) sink = SinkCont next end
+    where next i = liftM (applyPT trans') (feedSinkList es sink)
             where (es, trans') = tfn i
           end = feedSinkList tfe sink >>= closeSink
 
-mergeComplex :: ComplexTransformer a b -> ComplexTransformer b c -> ComplexTransformer a c
-mergeComplex _ (TransEnd r) = TransEnd r
-mergeComplex (TransEnd r) t2 = TransEnd $ endCT $ feedToComplex r t2
-mergeComplex (TransCont f d) t2 = TransCont next' done'
-    where next' i = (bs, mergeComplex t1' t2')
+mergePT :: PureTransform a b -> PureTransform b c -> PureTransform a c
+mergePT _ (TransEnd r) = TransEnd r
+mergePT (TransEnd r) t2 = TransEnd $ endPT $ feedPT r t2
+mergePT (TransCont f d) t2 = TransCont next' done'
+    where next' i = (bs, mergePT t1' t2')
             where (as, t1') = f i
-                  (bs, t2') = feedToComplex as t2
-          done' = endCT $ feedToComplex d t2
+                  (bs, t2') = feedPT as t2
+          done' = endPT $ feedPT d t2
 
-endCT (bs, t) = bs ++ closeCT t
+endPT (bs, t) = bs ++ closePT t
 
-closeCT (TransEnd bs) = bs
-closeCT (TransCont _ bs) = bs
+closePT (TransEnd bs) = bs
+closePT (TransCont _ bs) = bs
 
-feedToComplex :: [a] -> ComplexTransformer a b -> ([b], ComplexTransformer a b)
-feedToComplex es t = step [] es t
+feedPT :: [a] -> PureTransform a b -> ([b], PureTransform a b)
+feedPT es t = step [] es t
     where step outs []     t = (outs, t)
           step outs (e:es) (TransCont next done) = step (outs ++ r) es t'
                 where (r, t') = next e
           step outs rest   done = (outs, done)  --rest is lost
 
-mappingStateToComplex :: MappingStateTransformer a b -> ComplexTransformer a b
-mappingStateToComplex (MappingStateTransformer f) = TransCont step []
-    where step i = ([e], mappingStateToComplex t')
+mappingStateToPT :: MappingStateTransformer a b -> PureTransform a b
+mappingStateToPT (MappingStateTransformer f) = TransCont step []
+    where step i = ([e], mappingStateToPT t')
             where (e, t') = f i
 
-mappingToComplex :: MappingTransformer a b -> ComplexTransformer a b
-mappingToComplex (MappingTransformer f) = TransCont step []
+mappingToPT :: MappingTransformer a b -> PureTransform a b
+mappingToPT (MappingTransformer f) = TransCont step []
     where step i = ([f i], TransCont step [])
 
 
@@ -100,16 +100,16 @@ mappingToMappingState (MappingTransformer f) = MappingStateTransformer step
 
 -- TransformMerger instances
 
-instance TransformMerger ComplexTransformer ComplexTransformer ComplexTransformer where
-    (=$=) = mergeComplex
-instance TransformMerger ComplexTransformer MappingStateTransformer ComplexTransformer where
-    a =$= b = mergeComplex a (mappingStateToComplex b)
-instance TransformMerger MappingStateTransformer ComplexTransformer ComplexTransformer where
-    a =$= b = mergeComplex (mappingStateToComplex a) b
-instance TransformMerger ComplexTransformer MappingTransformer ComplexTransformer where
-    a =$= b = mergeComplex a (mappingToComplex b)
-instance TransformMerger MappingTransformer ComplexTransformer ComplexTransformer where
-    a =$= b = mergeComplex (mappingToComplex a) b
+instance TransformMerger PureTransform PureTransform PureTransform where
+    (=$=) = mergePT
+instance TransformMerger PureTransform MappingStateTransformer PureTransform where
+    a =$= b = mergePT a (mappingStateToPT b)
+instance TransformMerger MappingStateTransformer PureTransform PureTransform where
+    a =$= b = mergePT (mappingStateToPT a) b
+instance TransformMerger PureTransform MappingTransformer PureTransform where
+    a =$= b = mergePT a (mappingToPT b)
+instance TransformMerger MappingTransformer PureTransform PureTransform where
+    a =$= b = mergePT (mappingToPT a) b
 
 instance TransformMerger MappingTransformer MappingTransformer MappingTransformer where
     (MappingTransformer f) =$= (MappingTransformer g) = MappingTransformer (g . f)
@@ -135,29 +135,29 @@ zipWithIndex = MappingStateTransformer $ step 0
     where step nr i = ((i, nr), MappingStateTransformer $ step (succ nr))
 
 -- | Takes only the first n inputs, then returns done.
-take :: (Num n, Ord n) => n -> ComplexTransformer a a
+take :: (Num n, Ord n) => n -> PureTransform a a
 take n | n > 0          = TransCont (\i -> ([i], take $ n - 1)) []
             | otherwise = TransEnd []
 
 -- | Takes inputs until the input fullfils the predicate. The matching input is not passed on.
-takeUntil :: Eq a => (a -> Bool) -> ComplexTransformer a a
+takeUntil :: Eq a => (a -> Bool) -> PureTransform a a
 takeUntil p = TransCont (step []) []
     where step sf e | p e       = (sf, TransEnd [])
                     | otherwise = ([], TransCont (step sf') sf')
                 where sf' = sf ++ [e]
 
 -- | Takes inputs until the input matches the argument. The matching input is not passed on.
-takeUntilEq :: Eq a => a -> ComplexTransformer a a
+takeUntilEq :: Eq a => a -> PureTransform a a
 takeUntilEq e = takeUntil (e ==)
 
 
 -- | Accumulates all elements with the accumulator function.
-accumulate :: b -> (b -> a -> b) -> ComplexTransformer a b
+accumulate :: b -> (b -> a -> b) -> PureTransform a b
 accumulate acc f = TransCont step [acc]
     where step i = ([], accumulate (f acc i) f)
 
 -- | Accumulates up to n elements with the accumulator function and then releases it.
-buffer :: Int -> b -> (b -> a -> b) -> ComplexTransformer a b
+buffer :: Int -> b -> (b -> a -> b) -> PureTransform a b
 buffer initN initAcc f | initN < 1 = error $ "Cannot buffer " ++ show initN ++ " elements"
                        | otherwise = step initN initAcc
     where step 1 acc = TransCont next [acc]
