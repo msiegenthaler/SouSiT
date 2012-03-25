@@ -108,9 +108,28 @@ mergeOfComplexShouldBeSameAsSeperate = mergeCombos [
       T.buffer 3 0 (+)
     ]
 
+mergeOfComplexWithMappingShouldBeSameAsSeperate d =
+        mergeTransTuples cmbs d && mergeTransTuples (fmap swap cmbs) d
+    where cs = [T.take 10, T.take 3,
+                T.takeUntil (>10), T.takeUntilEq 1,
+                T.accumulate 0 (+), T.accumulate 1 (*),
+                T.buffer 3 0 (+)]
+          ms = [T.map (+1), T.map (*2)]
+          cmbs = [ (t1, t2) | t1 <- cs, t2 <- ms ]
 
-mergeCombos ts d = and $ fmap (uncurry (mergeSameAsSeperate d)) cmbs
+mergeOfComplexWithZipWithIndexShouldBeSameAsSeperate d =
+        mergeTransTuples cmbs d && mergeTransTuples (fmap swap cmbs) d
+    where cs = [T.take 10, T.take 3]
+          ms = [T.zipWithIndex]
+          cmbs = [ (t1, t2) | t1 <- cs, t2 <- ms ]
+
+swap (a, b) = (b, a)
+
+
+mergeCombos ts = mergeTransTuples cmbs
     where cmbs = [ (t1, t2) | t1 <- ts, t2 <- ts]
+
+mergeTransTuples ts d = and $ fmap (uncurry (mergeSameAsSeperate d)) ts
 
 mergeSameAsSeperate :: (TransformMerger t1 t2 t, Eq b) => [Int] -> t1 Int a -> t2 a b -> Bool
 mergeSameAsSeperate d t1 t2 = runIdentity (listSource d $$ t1 =$= t2 =$ listSink) == l2
@@ -164,7 +183,9 @@ tests =
         testProperty "of two maps should be same as seperate application" mergeOfTwoOfMapShouldBeSameAsSeperate,
         testProperty "of two zipWithIndex should be same as seperate application" mergeOfTwoOfZipWithIndexShouldBeSameAsSeperate,
         testProperty "of map and zipWithIndex should be same as seperate application" mergeOfMapWithZipWithIndexShouldBeSameAsSeperate,
-        testProperty "of complex Ops should be same as seperate application" mergeOfComplexShouldBeSameAsSeperate
+        testProperty "of complex Ops should be same as seperate application" mergeOfComplexShouldBeSameAsSeperate,
+        testProperty "of complex with map should be the same as seperate application" mergeOfComplexWithMappingShouldBeSameAsSeperate,
+        testProperty "of complex with zipWithIndex should be the same as seperate application" mergeOfComplexWithZipWithIndexShouldBeSameAsSeperate
       ]
     ]
 

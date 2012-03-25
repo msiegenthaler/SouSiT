@@ -55,6 +55,15 @@ feedToComplex es t = step [] es t
                 where (r, t') = next e
           step outs rest   done = (outs, done)  --rest is lost
 
+mappingStateToComplex :: MappingStateTransformer a b -> ComplexTransformer a b
+mappingStateToComplex (MappingStateTransformer f) = TransCont step []
+    where step i = ([e], mappingStateToComplex t')
+            where (e, t') = f i
+
+mappingToComplex :: MappingTransformer a b -> ComplexTransformer a b
+mappingToComplex (MappingTransformer f) = TransCont step []
+    where step i = ([f i], TransCont step [])
+
 
 -- | Transformation that treats each element seperatly
 data MappingTransformer a b = MappingTransformer (a -> b)
@@ -65,6 +74,7 @@ applyMapping :: Monad m => (a -> b) -> Sink b m r -> Sink a m r
 applyMapping _ (SinkDone r) = SinkDone r
 applyMapping f (SinkCont next done) = SinkCont next' done
     where next' = liftM (applyMapping f) . next . f
+
 
 -- | Transformation that treats each element seperatly and may have state
 data MappingStateTransformer a b = MappingStateTransformer (a -> (b, (MappingStateTransformer a b)))
@@ -92,6 +102,14 @@ mappingToMappingState (MappingTransformer f) = MappingStateTransformer step
 
 instance TransformMerger ComplexTransformer ComplexTransformer ComplexTransformer where
     (=$=) = mergeComplex
+instance TransformMerger ComplexTransformer MappingStateTransformer ComplexTransformer where
+    a =$= b = mergeComplex a (mappingStateToComplex b)
+instance TransformMerger MappingStateTransformer ComplexTransformer ComplexTransformer where
+    a =$= b = mergeComplex (mappingStateToComplex a) b
+instance TransformMerger ComplexTransformer MappingTransformer ComplexTransformer where
+    a =$= b = mergeComplex a (mappingToComplex b)
+instance TransformMerger MappingTransformer ComplexTransformer ComplexTransformer where
+    a =$= b = mergeComplex (mappingToComplex a) b
 
 instance TransformMerger MappingTransformer MappingTransformer MappingTransformer where
     (MappingTransformer f) =$= (MappingTransformer g) = MappingTransformer (g . f)
