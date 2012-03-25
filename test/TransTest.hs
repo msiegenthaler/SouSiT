@@ -82,6 +82,13 @@ buffersLastBlockHasNmodXElements d n = n < 20 && n > 0 ==>
 
 listAcc l = (l ++) . (:[])
 
+-- zipWithIndex
+zipWithIndexDoesNotChangeNumberOfElements d = length (transList T.zipWithIndex d) == length d
+
+zipWithIndexStartsWithZero d = not (null d) ==> snd (head (transList T.zipWithIndex d)) == 0
+
+zipWithIndexSndIs0toN d = not (null d) ==> l == [0..((length d) - 1)]
+    where l = fmap snd $ transList T.zipWithIndex d
 
 --Main
 main = defaultMain tests
@@ -118,6 +125,11 @@ tests =
         testProperty "buffer does not change elements (when concat'ed)" bufferDoesNotChangeElements,
         testProperty "buffer makes blocks with specified size" bufferMakesBlocksWithSpecifiedSize,
         testProperty "buffers last block has n mod x elements" buffersLastBlockHasNmodXElements
+      ],
+      testGroup "Trans.zipWithIndex" [
+        testProperty "does not change number of elements" zipWithIndexDoesNotChangeNumberOfElements,
+        testProperty "starts with 0" zipWithIndexStartsWithZero,
+        testProperty "snd is [0..N]" zipWithIndexSndIs0toN
       ]
     ]
 

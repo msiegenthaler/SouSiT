@@ -2,10 +2,12 @@
 
 module Data.SouSiT.Trans (
     ComplexTransformer(..),
+    MappingStateTransformer(..),
+    map,
+    zipWithIndex,
     take,
     takeUntil,
     takeUntilEq,
-    map,
     accumulate,
     buffer
 ) where
@@ -40,6 +42,16 @@ applyMapping _ (SinkDone r) = SinkDone r
 applyMapping f (SinkCont next done) = SinkCont next' done
     where next' = liftM (applyMapping f) . next . f
 
+-- | Transformation that treats each element seperatly and may have state
+data MappingStateTransformer a b = MappingStateTransformer (a -> (b, (MappingStateTransformer a b)))
+instance Transform MappingStateTransformer where
+    transformSink (MappingStateTransformer f) = applyMappingState f
+
+applyMappingState :: Monad m => (a -> (b, (MappingStateTransformer a b))) -> Sink b m r -> Sink a m r
+applyMappingState _ (SinkDone r) = SinkDone r
+applyMappingState f (SinkCont next done) = SinkCont next' done
+    where next' i = liftM (transformSink f') $ next r
+            where (r, f') = f i
 
 
 instance TransformMerger ComplexTransformer ComplexTransformer ComplexTransformer where
@@ -50,6 +62,12 @@ instance TransformMerger ComplexTransformer ComplexTransformer ComplexTransforme
 -- | Transforms each input individually by applying the function.
 map :: (a -> b) -> MappingTransformer a b
 map = MappingTransformer
+
+-- | Transforms each input to a tuple (input, index of input).
+-- I.e. for "Mario": (M, 0), (a, 1), (r, 2), (i, 3), (o, 4)
+zipWithIndex :: MappingStateTransformer a (a, Int)
+zipWithIndex = MappingStateTransformer $ step 0
+    where step nr i = ((i, nr), MappingStateTransformer $ step (succ nr))
 
 -- | Takes only the first n inputs, then returns done.
 take :: (Num n, Ord n) => n -> ComplexTransformer a a
