@@ -34,7 +34,27 @@ applyComplex (TransCont tfn tfe) sink = SinkCont next end
             where (es, trans') = tfn i
           end = feedSinkList tfe sink >>= closeSink
 
-mergeComplex = undefined --TODO
+mergeComplex :: ComplexTransformer a b -> ComplexTransformer b c -> ComplexTransformer a c
+mergeComplex _ (TransEnd r) = TransEnd r
+mergeComplex (TransEnd r) t2 = TransEnd $ endCT $ feedToComplex r t2
+mergeComplex (TransCont f d) t2 = TransCont next' done'
+    where next' i = (bs, mergeComplex t1' t2')
+            where (as, t1') = f i
+                  (bs, t2') = feedToComplex as t2
+          done' = endCT $ feedToComplex d t2
+
+endCT (bs, t) = bs ++ closeCT t
+
+closeCT (TransEnd bs) = bs
+closeCT (TransCont _ bs) = bs
+
+feedToComplex :: [a] -> ComplexTransformer a b -> ([b], ComplexTransformer a b)
+feedToComplex es t = step [] es t
+    where step outs []     t = (outs, t)
+          step outs (e:es) (TransCont next done) = step (outs ++ r) es t'
+                where (r, t') = next e
+          step outs rest   done = (outs, done)  --rest is lost
+
 
 -- | Transformation that treats each element seperatly
 data MappingTransformer a b = MappingTransformer (a -> b)

@@ -101,6 +101,13 @@ mergeOfMapWithZipWithIndexShouldBeSameAsSeperate d =
       mergeSameAsSeperate d T.zipWithIndex (T.map swap)
     where swap (a, b) = (b, a)
 
+mergeOfComplexShouldBeSameAsSeperate = mergeCombos [
+      T.take 10, T.take 3,
+      T.takeUntil (>10), T.takeUntilEq 1,
+      T.accumulate 0 (+), T.accumulate 1 (*),
+      T.buffer 3 0 (+)
+    ]
+
 
 mergeCombos ts d = and $ fmap (uncurry (mergeSameAsSeperate d)) cmbs
     where cmbs = [ (t1, t2) | t1 <- ts, t2 <- ts]
@@ -156,7 +163,8 @@ tests =
       testGroup "Trans.=$=" [
         testProperty "of two maps should be same as seperate application" mergeOfTwoOfMapShouldBeSameAsSeperate,
         testProperty "of two zipWithIndex should be same as seperate application" mergeOfTwoOfZipWithIndexShouldBeSameAsSeperate,
-        testProperty "of map and zipWithIndex should be same as sperate application" mergeOfMapWithZipWithIndexShouldBeSameAsSeperate
+        testProperty "of map and zipWithIndex should be same as seperate application" mergeOfMapWithZipWithIndexShouldBeSameAsSeperate,
+        testProperty "of complex Ops should be same as seperate application" mergeOfComplexShouldBeSameAsSeperate
       ]
     ]
 
