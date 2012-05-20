@@ -145,6 +145,57 @@ mergeSameAsSeperate d t1 t2 = runIdentity (listSource d $$ t1 =$= t2 =$ listSink
     where l1 = runIdentity (listSource d $$ t1 =$ listSink)
           l2 = runIdentity (listSource l1 $$ t2 =$ listSink)
 
+--drop
+
+drop2ReducesLengthBy2 d = length (transList (T.drop 2) d) == (max 0 ((length d) - 2))
+
+drop1ReducesLengthBy1 d = length (transList (T.drop 1) d) == (max 0 ((length d) - 1))
+
+dropNReducesLengthByN d n = n >= 0 && n < 100 ==>
+    length (transList (T.drop n) d) == (max 0 ((length d) - n))
+
+
+-- dropUntil
+
+dropUntilFalseIsEmpty d = transList (T.dropUntil (\_ -> False)) d == []
+
+dropUntilTrueIsInput d = transList (T.dropUntil (\_ -> True)) d == d
+
+dropUntil5thElementIsEqDrop4 d = length d > 5 ==> elemIndex nr5 d == Just 4 ==>
+        transList (T.dropUntil (\i -> i == nr5)) d == drop 4 d
+    where nr5 = d !! 4
+
+
+-- takeWhile
+
+takeWhileFalseIsEmpty d = transList (T.takeWhile (\_ -> False)) d == []
+
+takeWhileTrueIsInput d = transList (T.takeWhile (\_ -> True)) d == d
+
+takeWhileSmallerOnAscending n = n > 0 && n < 200 ==>
+        transList (T.takeWhile (<n)) [1,2..] == transList (T.take (n-1)) [1,2..]
+
+takeWhileSmallerOnOccTwice n = n > 0 && n < 99 ==>
+        transList (T.takeWhile (<n)) l == transList (T.take (n-1)) l
+    where l = [1..100] ++ [1..100]
+
+
+-- dropWhile
+
+dropWhileFalseIsInput d = transList (T.dropWhile (\_ -> False)) d == d
+
+dropWhileTrueIsEmpty d = transList (T.dropWhile (\_ -> True)) d == []
+
+dropWhileSmallerOnAscending n = n > 0 && n < 200 ==>
+        transList (T.dropWhile (<n)) l == transList (T.drop (n-1)) l
+    where l = [1..1000]
+
+dropWhileSmallerOnOccTwice n = n > 0 && n < 99 ==>
+        transList (T.dropWhile (<n)) l == transList (T.drop (n-1)) l
+    where l = [1..100] ++ [1..100]
+
+
+
 
 --Main
 main = defaultMain tests
@@ -182,6 +233,12 @@ tests =
         testProperty "element not in list is input" takeUntilEqElNotInListIsInput,
         testProperty "first element is []" takeUntilEqFirstIsEmpty
       ],
+      testGroup "Trans.takeWhile" [
+        testProperty "false is empty" takeWhileFalseIsEmpty,
+        testProperty "true is input" takeWhileTrueIsInput,
+        testProperty "smaller than n on [1,2..] equals take (n-1)" takeWhileSmallerOnAscending,
+        testProperty "smaller than n on [1..100] ++ [1..100] equals take (n-1)" takeWhileSmallerOnOccTwice
+      ],
       testGroup "Trans.accumulate" [
         testProperty "[] (flip (:)) returns the reversed input list as first element" accumulateConsReturnsReversedInputAsFirstElement,
         testProperty "[] listAcc returns the input list as first element" accumulateListAccReturnsInputAsFirstElement,
@@ -191,6 +248,22 @@ tests =
         testProperty "does not change elements (when concat'ed)" bufferDoesNotChangeElements,
         testProperty "makes blocks with specified size" bufferMakesBlocksWithSpecifiedSize,
         testProperty "last block has n mod x elements" buffersLastBlockHasNmodXElements
+      ],
+      testGroup "Trans.drop" [
+        testProperty "2 reduces the number of elements by 2" drop2ReducesLengthBy2,
+        testProperty "1 reduces the number of elements by 1" drop1ReducesLengthBy1,
+        testProperty "n reduces the number of elements by n" dropNReducesLengthByN
+      ],
+      testGroup "Trans.dropUntil" [
+        testProperty "false yields empty" dropUntilFalseIsEmpty,
+        testProperty "true yields input" dropUntilTrueIsInput,
+        testProperty "dropUntil 5th element is equal to drop 4" dropUntil5thElementIsEqDrop4
+      ],
+      testGroup "Trans.dropWhile" [
+        testProperty "false is input" dropWhileFalseIsInput,
+        testProperty "true is empty" dropWhileTrueIsEmpty,
+        testProperty "smaller than n on [1,2..] equals drop (n-1)" dropWhileSmallerOnAscending,
+        testProperty "smaller than n on [1..100] ++ [1..100] equals drop (n-1)" dropWhileSmallerOnOccTwice
       ],
       testGroup "Trans.=$=" [
         testProperty "of two maps should be same as seperate application" mergeOfTwoOfMapShouldBeSameAsSeperate,

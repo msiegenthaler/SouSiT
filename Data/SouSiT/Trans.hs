@@ -1,22 +1,30 @@
 {-# LANGUAGE GADTs #-}
 
 module Data.SouSiT.Trans (
-    -- * Concrete tranformers
+    -- * Element Tranformers
     id,
     map,
     zipWithIndex,
+    --- * Take / Drop
     take,
     takeUntil,
     takeUntilEq,
+    takeWhile,
+    drop,
+    dropUntil,
+    dropWhile,
+    -- * Accumulation
     accumulate,
     buffer,
+    -- * Looping
     loop
 ) where
 
-import Prelude hiding (take, map, id)
+import Prelude hiding (id, map, take, takeWhile, drop, dropWhile)
 import qualified Prelude as P
 import Control.Monad
 import Data.SouSiT
+
 
 -- | Does not perform any transformation.
 id :: Transform a a
@@ -34,11 +42,11 @@ zipWithIndex = MappingTransform $ step 0
 
 -- | Takes only the first n inputs, then returns done.
 take :: (Num n, Ord n) => n -> Transform a a
-take n | n > 0          = ContTransform (\i -> ([i], take $ n - 1)) []
-            | otherwise = EndTransform []
+take n | n > 0     = ContTransform (\i -> ([i], take $ n - 1)) []
+       | otherwise = EndTransform []
 
 -- | Takes inputs until the input fullfils the predicate. The matching input is not passed on.
-takeUntil :: Eq a => (a -> Bool) -> Transform a a
+takeUntil :: (a -> Bool) -> Transform a a
 takeUntil p = ContTransform (step []) []
     where step sf e | p e       = (sf, EndTransform [])
                     | otherwise = ([], ContTransform (step sf') sf')
@@ -48,6 +56,10 @@ takeUntil p = ContTransform (step []) []
 takeUntilEq :: Eq a => a -> Transform a a
 takeUntilEq e = takeUntil (e ==)
 
+-- | Take inputs while the input fullfils the predicate. As soon as the first non-matching input
+-- is encountered no more inputs will be passed on.
+takeWhile :: (a -> Bool) -> Transform a a
+takeWhile f = takeUntil (not . f)
 
 -- | Accumulates all elements with the accumulator function.
 accumulate :: b -> (b -> a -> b) -> Transform a b
@@ -63,6 +75,23 @@ buffer initN initAcc f | initN < 1 = error $ "Cannot buffer " ++ show initN ++ "
           step n acc = ContTransform next [acc] 
             where next i = ([], step (n-1) (f acc i))
 
+-- | Drops the first n inputs then passes through all inputs unchanged
+drop :: (Num n, Ord n) => n -> Transform a a
+drop n | n > 0     = ContTransform (\_ -> ([], drop (n - 1))) []
+       | otherwise = IdentTransform
+
+-- | Drops inputs until the predicate is matched. The matching input and all subsequent inputs
+-- are passed on unchanged.
+dropUntil :: (a -> Bool) -> Transform a a
+dropUntil p = ContTransform step []
+    where step i | p i       = ([i], IdentTransform)
+                 | otherwise = ([],  ContTransform step [])
+
+-- | Drops inputs as long as they match the predicate. The first non-matching input and all
+-- following inputs are passed on unchanged.
+dropWhile :: (a -> Bool) -> Transform a a
+dropWhile f = dropUntil (not . f)
+
 -- | Loops the given transform forever.
 loop :: Transform a b -> Transform a b
 loop IdentTransform = IdentTransform
@@ -77,4 +106,3 @@ loop (ContTransform on od) = ContTransform (conv on) od
                         t@(MappingTransform _)    -> (es, t)
                         (ContTransform n d)       -> (es, ContTransform (conv n) d)
                         (EndTransform r)          -> (es ++ r, ContTransform (conv on) od)
-
