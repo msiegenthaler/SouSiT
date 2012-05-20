@@ -19,7 +19,7 @@ import Data.SouSiT
 
 -- | Does not perform any transformation.
 id :: Transform a a
-id = MappingFunTransform P.id
+id = IdentTransform
 
 -- | Transforms each input individually by applying the function.
 map :: (a -> b) -> Transform a b
