@@ -195,6 +195,15 @@ dropWhileSmallerOnOccTwice n = n > 0 && n < 99 ==>
     where l = [1..100] ++ [1..100]
 
 
+-- loop
+
+loopDropTake n = n > 0 ==> n < 1000 ==>
+        transList (T.loop (T.drop 1 =$= T.take 1)) [1..n] == [2,4..n]
+
+loopTakeNEqOriginal :: [Int] -> Int -> Property
+loopTakeNEqOriginal d n = n > 0 ==> n < 100 ==>
+        transList (T.loop (T.take n)) d == d
+
 
 
 --Main
@@ -264,6 +273,10 @@ tests =
         testProperty "true is empty" dropWhileTrueIsEmpty,
         testProperty "smaller than n on [1,2..] equals drop (n-1)" dropWhileSmallerOnAscending,
         testProperty "smaller than n on [1..100] ++ [1..100] equals drop (n-1)" dropWhileSmallerOnOccTwice
+      ],
+      testGroup "Trans.loop" [
+        testProperty "take n is the same as the original list" loopTakeNEqOriginal,
+        testProperty "drop 1 >>> take 1 on [1..n] should be [2,4..n]" loopDropTake
       ],
       testGroup "Trans.=$=" [
         testProperty "of two maps should be same as seperate application" mergeOfTwoOfMapShouldBeSameAsSeperate,
