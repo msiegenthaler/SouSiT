@@ -211,5 +211,10 @@ closeTransform _ = []
 feedTransform :: [a] -> Transform a b -> ([b], Transform a b)
 feedTransform es t = step [] es t
     where step outs []     t = (outs, t)
-          step outs (e:es) (ContTransform next done) = let (r, t') = next e in step (outs ++ r) es t'
-          step outs rest done = (outs, done) --'rest' is lost
+          step outs es   t@(MappingFunTransform f) = (outs ++ map f es, t)
+          step outs (e:es) (MappingTransform f) = let (r, t') = f e in step (outs ++ [r]) es t'
+          step outs (e:es) (ContTransform f _)  = let (r, t') = f e in step (outs ++ r) es t'
+          step outs rest t@(EndTransform _) = (outs, t) --'rest' is lost
+
+
+
