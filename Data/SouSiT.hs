@@ -141,6 +141,10 @@ infixl 3 =+=
 infixl 3 =+|=
 
 
+
+
+
+
 -- | A transformation onto a sink
 data Transform a b = MappingFunTransform (a -> b)
                    | MappingTransform    (a -> ( b,  Transform a b))
