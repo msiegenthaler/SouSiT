@@ -21,7 +21,7 @@ listSink = L.listSink
 
 run = runIdentity
 
-transList :: Transform t => t Int a -> [Int] -> [a]
+transList :: Transform Int a -> [Int] -> [a]
 transList t l = run (listSource l $$ t =$ listSink)
 
 -- take
@@ -52,6 +52,11 @@ takeUntilEq5thElementIsEqTake4 d = length d > 5 ==> elemIndex nr5 d == Just 4 ==
 takeUntilEqElNotInListIsInput d e = not (elem e d) ==> transList (T.takeUntilEq e) d == d
 
 takeUntilEqFirstIsEmpty d = not (null d) ==> transList (T.takeUntilEq (head d)) d == []
+
+-- id
+idIsTheSameAsMapPreludeId d = transList (T.map id) d == transList (T.id) d
+
+idDoesNotChangeInput d = transList (T.id) d == d
 
 -- map
 mapIdDoesNotChangeInput d = transList (T.map id) d == d
@@ -101,6 +106,10 @@ mergeOfMapWithZipWithIndexShouldBeSameAsSeperate d =
       mergeSameAsSeperate d T.zipWithIndex (T.map swap)
     where swap (a, b) = (b, a)
 
+mergeOfMapWithTakeShouldBeSameAsSeparate d = 
+      mergeSameAsSeperate d (T.map (+1)) (T.take 3) &&
+      mergeSameAsSeperate d (T.take 3) (T.map (+1))
+
 mergeOfPureShouldBeSameAsSeperate = mergeCombos [
       T.take 10, T.take 3,
       T.takeUntil (>10), T.takeUntilEq 1,
@@ -131,7 +140,7 @@ mergeCombos ts = mergeTransTuples cmbs
 
 mergeTransTuples ts d = and $ fmap (uncurry (mergeSameAsSeperate d)) ts
 
-mergeSameAsSeperate :: (TransformMerger t1 t2 t, Eq b) => [Int] -> t1 Int a -> t2 a b -> Bool
+mergeSameAsSeperate :: Eq b => [Int] -> Transform Int a -> Transform a b -> Bool
 mergeSameAsSeperate d t1 t2 = runIdentity (listSource d $$ t1 =$= t2 =$ listSink) == l2
     where l1 = runIdentity (listSource d $$ t1 =$ listSink)
           l2 = runIdentity (listSource l1 $$ t2 =$ listSink)
@@ -143,6 +152,10 @@ main = defaultMain tests
 tests :: [Test]
 tests =
     [
+      testGroup "Trans.id" [
+        testProperty "is the same as T.map Prelude.id" idIsTheSameAsMapPreludeId,
+        testProperty "does not change input" idDoesNotChangeInput
+      ],
       testGroup "Trans.map" [
         testProperty "with id does not change input" mapIdDoesNotChangeInput,
         testProperty "behaves equal to map on list" mapBehavesTheSameAsMapOnList
@@ -183,6 +196,7 @@ tests =
         testProperty "of two maps should be same as seperate application" mergeOfTwoOfMapShouldBeSameAsSeperate,
         testProperty "of two zipWithIndex should be same as seperate application" mergeOfTwoOfZipWithIndexShouldBeSameAsSeperate,
         testProperty "of map and zipWithIndex should be same as seperate application" mergeOfMapWithZipWithIndexShouldBeSameAsSeperate,
+        testProperty "of map with take should be same as seperate application" mergeOfMapWithTakeShouldBeSameAsSeparate,
         testProperty "of pure Ops should be same as seperate application" mergeOfPureShouldBeSameAsSeperate,
         testProperty "of pure with map should be the same as seperate application" mergeOfPureWithMappingShouldBeSameAsSeperate,
         testProperty "of pure with zipWithIndex should be the same as seperate application" mergeOfPureWithZipWithIndexShouldBeSameAsSeperate
