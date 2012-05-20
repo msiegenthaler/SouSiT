@@ -2,6 +2,7 @@
 
 module Data.SouSiT.Trans (
     -- * Concrete tranformers
+    id,
     map,
     zipWithIndex,
     take,
@@ -12,9 +13,13 @@ module Data.SouSiT.Trans (
 ) where
 
 import Prelude hiding (take, map, id)
+import qualified Prelude as P
 import Control.Monad
 import Data.SouSiT
 
+-- | Does not perform any transformation.
+id :: Transform a a
+id = MappingFunTransform P.id
 
 -- | Transforms each input individually by applying the function.
 map :: (a -> b) -> Transform a b
