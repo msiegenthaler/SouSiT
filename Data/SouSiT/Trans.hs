@@ -9,10 +9,11 @@ module Data.SouSiT.Trans (
     takeUntil,
     takeUntilEq,
     accumulate,
-    buffer
+    buffer,
+    drop
 ) where
 
-import Prelude hiding (take, map, id)
+import Prelude hiding (take, map, id, drop)
 import qualified Prelude as P
 import Control.Monad
 import Data.SouSiT
@@ -33,8 +34,8 @@ zipWithIndex = MappingTransform $ step 0
 
 -- | Takes only the first n inputs, then returns done.
 take :: (Num n, Ord n) => n -> Transform a a
-take n | n > 0          = ContTransform (\i -> ([i], take $ n - 1)) []
-            | otherwise = EndTransform []
+take n | n > 0     = ContTransform (\i -> ([i], take $ n - 1)) []
+       | otherwise = EndTransform []
 
 -- | Takes inputs until the input fullfils the predicate. The matching input is not passed on.
 takeUntil :: Eq a => (a -> Bool) -> Transform a a
@@ -61,3 +62,8 @@ buffer initN initAcc f | initN < 1 = error $ "Cannot buffer " ++ show initN ++ "
             where next i = ([f acc i], step initN initAcc)
           step n acc = ContTransform next [acc] 
             where next i = ([], step (n-1) (f acc i))
+
+-- | Drops the first n inputs then passes through all inputs unchanged
+drop :: (Num n, Ord n) => n -> Transform a a
+drop n | n > 0     = ContTransform (\_ -> ([], drop (n - 1))) []
+       | otherwise = IdentTransform

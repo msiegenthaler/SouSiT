@@ -145,6 +145,16 @@ mergeSameAsSeperate d t1 t2 = runIdentity (listSource d $$ t1 =$= t2 =$ listSink
     where l1 = runIdentity (listSource d $$ t1 =$ listSink)
           l2 = runIdentity (listSource l1 $$ t2 =$ listSink)
 
+--Drop
+
+drop2ReducesLengthBy2 d = length (transList (T.drop 2) d) == (max 0 ((length d) - 2))
+
+drop1ReducesLengthBy1 d = length (transList (T.drop 1) d) == (max 0 ((length d) - 1))
+
+dropNReducesLengthByN d n = n >= 0 && n < 100 ==>
+    length (transList (T.drop n) d) == (max 0 ((length d) - n))
+
+
 
 --Main
 main = defaultMain tests
@@ -191,6 +201,11 @@ tests =
         testProperty "does not change elements (when concat'ed)" bufferDoesNotChangeElements,
         testProperty "makes blocks with specified size" bufferMakesBlocksWithSpecifiedSize,
         testProperty "last block has n mod x elements" buffersLastBlockHasNmodXElements
+      ],
+      testGroup "Trans.drop" [
+        testProperty "2 reduces the number of elements by 2" drop2ReducesLengthBy2,
+        testProperty "1 reduces the number of elements by 1" drop1ReducesLengthBy1,
+        testProperty "n reduces the number of elements by n" dropNReducesLengthByN
       ],
       testGroup "Trans.=$=" [
         testProperty "of two maps should be same as seperate application" mergeOfTwoOfMapShouldBeSameAsSeperate,
