@@ -12,15 +12,17 @@ module Data.SouSiT.Trans (
     takeWhile,
     drop,
     dropUntil,
+    dropWhile,
     -- * Accumulation
     accumulate,
     buffer
 ) where
 
-import Prelude hiding (take, takeWhile, map, id, drop)
+import Prelude hiding (id, map, take, takeWhile, drop, dropWhile)
 import qualified Prelude as P
 import Control.Monad
 import Data.SouSiT
+
 
 -- | Does not perform any transformation.
 id :: Transform a a
@@ -82,3 +84,8 @@ dropUntil :: (a -> Bool) -> Transform a a
 dropUntil p = ContTransform step []
     where step i | p i       = ([i], IdentTransform)
                  | otherwise = ([],  ContTransform step [])
+
+-- | Drops inputs as long as they match the predicate. The first non-matching input and all
+-- following inputs are passed on unchanged.
+dropWhile :: (a -> Bool) -> Transform a a
+dropWhile f = dropUntil (not . f)
