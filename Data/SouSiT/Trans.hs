@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE GADTs #-}
 
 module Data.SouSiT.Trans (
     -- * Concrete tranformers
@@ -9,7 +9,8 @@ module Data.SouSiT.Trans (
     takeUntil,
     takeUntilEq,
     accumulate,
-    buffer
+    buffer,
+    loop
 ) where
 
 import Prelude hiding (take, map, id)
@@ -62,13 +63,18 @@ buffer initN initAcc f | initN < 1 = error $ "Cannot buffer " ++ show initN ++ "
           step n acc = ContTransform next [acc] 
             where next i = ([], step (n-1) (f acc i))
 
-
+-- | Loops the given transform forever.
 loop :: Transform a b -> Transform a b
+loop IdentTransform = IdentTransform
 loop t@(MappingFunTransform _) = t
 loop t@(MappingTransform _) = t
-loop t = step t
-    where step t 
-
-
-
+loop (EndTransform r) = ContTransform step r
+    where step _ = (r, ContTransform step r)
+loop (ContTransform on od) = ContTransform (conv on) od
+    where conv next i = let (es, nt) = next i in case nt of
+                        IdentTransform            -> (es, IdentTransform)
+                        t@(MappingFunTransform _) -> (es, t)
+                        t@(MappingTransform _)    -> (es, t)
+                        (ContTransform n d)       -> (es, ContTransform (conv n) d)
+                        (EndTransform r)          -> (es ++ r, ContTransform (conv on) od)
 
