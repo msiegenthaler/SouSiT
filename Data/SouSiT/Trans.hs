@@ -17,7 +17,8 @@ module Data.SouSiT.Trans (
     accumulate,
     buffer,
     -- * Looping
-    loop
+    loop,
+    loopN
 ) where
 
 import Prelude hiding (id, map, take, takeWhile, drop, dropWhile)
@@ -94,15 +95,29 @@ dropWhile f = dropUntil (not . f)
 
 -- | Loops the given transform forever.
 loop :: Transform a b -> Transform a b
-loop IdentTransform = IdentTransform
-loop t@(MappingFunTransform _) = t
-loop t@(MappingTransform _) = t
 loop (EndTransform r) = ContTransform step r
     where step _ = (r, ContTransform step r)
 loop (ContTransform on od) = ContTransform (conv on) od
     where conv next i = let (es, nt) = next i in case nt of
-                        IdentTransform            -> (es, IdentTransform)
-                        t@(MappingFunTransform _) -> (es, t)
-                        t@(MappingTransform _)    -> (es, t)
-                        (ContTransform n d)       -> (es, ContTransform (conv n) d)
-                        (EndTransform r)          -> (es ++ r, ContTransform (conv on) od)
+                    IdentTransform            -> (es, IdentTransform)
+                    t@(MappingFunTransform _) -> (es, t)
+                    t@(MappingTransform _)    -> (es, t)
+                    (ContTransform n d)       -> (es, ContTransform (conv n) d)
+                    (EndTransform r)          -> (es ++ r, ContTransform (conv on) od)
+loop t = t
+
+-- | Loops the given transform n times
+loopN :: (Num n, Ord n) => n -> Transform a b -> Transform a b
+loopN n (EndTransform r) = ContTransform (step n) r
+    where step n _ | n > 0     = (r, ContTransform (step (n-1)) r)
+                   | otherwise = (r, (EndTransform []))
+loopN n (ContTransform on od) = ContTransform (conv n on) od
+    where conv n next i = let (es, nt) = next i in case nt of
+                    IdentTransform            -> (es, IdentTransform)
+                    t@(MappingFunTransform _) -> (es, t)
+                    t@(MappingTransform _)    -> (es, t)
+                    (ContTransform nf d)      -> (es, ContTransform (conv n nf) d)
+                    (EndTransform r)          ->
+                        if n > 1 then (es ++ r, ContTransform (conv (n-1) on) od)
+                        else (es ++ r, EndTransform [])
+loopN _ t = t

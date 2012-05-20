@@ -205,6 +205,14 @@ loopTakeNEqOriginal d n = n > 0 ==> n < 100 ==>
         transList (T.loop (T.take n)) d == d
 
 
+-- loopN
+
+loopNDropTake n = n > 0 ==> n < 1000 ==>
+        transList (T.loopN n (T.drop 1 =$= T.take 1)) [1..] == take n [2,4..]
+
+loopNTakeNEqOriginal :: Int -> Int -> Property
+loopNTakeNEqOriginal n m = n > 0 ==> m > 0 ==> n < 100 ==> m < 100 ==>
+        transList (T.loopN n (T.take m)) [1..] == take (m*n) [1..]
 
 --Main
 main = defaultMain tests
@@ -277,6 +285,10 @@ tests =
       testGroup "Trans.loop" [
         testProperty "take n is the same as the original list" loopTakeNEqOriginal,
         testProperty "drop 1 >>> take 1 on [1..n] should be [2,4..n]" loopDropTake
+      ],
+      testGroup "Trans.loopN" [
+        testProperty "take m is the same as take (m*n) of the original list" loopNTakeNEqOriginal,
+        testProperty "on drop 1 >>> take 1 on [1..] should be (take n [2,4..])" loopNDropTake
       ],
       testGroup "Trans.=$=" [
         testProperty "of two maps should be same as seperate application" mergeOfTwoOfMapShouldBeSameAsSeperate,
