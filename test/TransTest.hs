@@ -145,7 +145,7 @@ mergeSameAsSeperate d t1 t2 = runIdentity (listSource d $$ t1 =$= t2 =$ listSink
     where l1 = runIdentity (listSource d $$ t1 =$ listSink)
           l2 = runIdentity (listSource l1 $$ t2 =$ listSink)
 
---Drop
+--drop
 
 drop2ReducesLengthBy2 d = length (transList (T.drop 2) d) == (max 0 ((length d) - 2))
 
@@ -155,6 +155,8 @@ dropNReducesLengthByN d n = n >= 0 && n < 100 ==>
     length (transList (T.drop n) d) == (max 0 ((length d) - n))
 
 
+-- dropUntil
+
 dropUntilFalseIsEmpty d = transList (T.dropUntil (\_ -> False)) d == []
 
 dropUntilTrueIsInput d = transList (T.dropUntil (\_ -> True)) d == d
@@ -163,6 +165,19 @@ dropUntil5thElementIsEqDrop4 d = length d > 5 ==> elemIndex nr5 d == Just 4 ==>
         transList (T.dropUntil (\i -> i == nr5)) d == drop 4 d
     where nr5 = d !! 4
 
+
+-- takeWhile
+
+takeWhileFalseIsEmpty d = transList (T.takeWhile (\_ -> False)) d == []
+
+takeWhileTrueIsInput d = transList (T.takeWhile (\_ -> True)) d == d
+
+takeWhileSmallerOnAscending n = n > 0 && n < 200 ==>
+        transList (T.takeWhile (<n)) [1,2..] == transList (T.take (n-1)) [1,2..]
+
+takeWhileSmallerOnEvenOdd n = n > 0 && n < 99 ==>
+        transList (T.takeWhile (<n)) l == transList (T.take (n-1)) l
+    where l = [1..100] ++ [1..100]
 
 
 --Main
@@ -200,6 +215,12 @@ tests =
         testProperty "5th element is same as take 4" takeUntilEq5thElementIsEqTake4,
         testProperty "element not in list is input" takeUntilEqElNotInListIsInput,
         testProperty "first element is []" takeUntilEqFirstIsEmpty
+      ],
+      testGroup "Trans.takeWhile" [
+        testProperty "false is empty" takeWhileFalseIsEmpty,
+        testProperty "true is input" takeWhileTrueIsInput,
+        testProperty "smaller than n on [1,2..] equals take (n-1)" takeWhileSmallerOnAscending,
+        testProperty "smaller than n on [1..100] ++ [1..100] equals take (n-1)" takeWhileSmallerOnEvenOdd
       ],
       testGroup "Trans.accumulate" [
         testProperty "[] (flip (:)) returns the reversed input list as first element" accumulateConsReturnsReversedInputAsFirstElement,

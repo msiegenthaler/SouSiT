@@ -9,6 +9,7 @@ module Data.SouSiT.Trans (
     take,
     takeUntil,
     takeUntilEq,
+    takeWhile,
     drop,
     dropUntil,
     -- * Accumulation
@@ -16,7 +17,7 @@ module Data.SouSiT.Trans (
     buffer
 ) where
 
-import Prelude hiding (take, map, id, drop)
+import Prelude hiding (take, takeWhile, map, id, drop)
 import qualified Prelude as P
 import Control.Monad
 import Data.SouSiT
@@ -51,6 +52,10 @@ takeUntil p = ContTransform (step []) []
 takeUntilEq :: Eq a => a -> Transform a a
 takeUntilEq e = takeUntil (e ==)
 
+-- | Take inputs while the input fullfils the predicate. As soon as the first non-matching input
+-- is encountered no more inputs will be passed on.
+takeWhile :: (a -> Bool) -> Transform a a
+takeWhile f = takeUntil (not . f)
 
 -- | Accumulates all elements with the accumulator function.
 accumulate :: b -> (b -> a -> b) -> Transform a b
