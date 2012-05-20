@@ -155,6 +155,15 @@ dropNReducesLengthByN d n = n >= 0 && n < 100 ==>
     length (transList (T.drop n) d) == (max 0 ((length d) - n))
 
 
+dropUntilFalseIsEmpty d = transList (T.dropUntil (\_ -> False)) d == []
+
+dropUntilTrueIsInput d = transList (T.dropUntil (\_ -> True)) d == d
+
+dropUntil5thElementIsEqDrop4 d = length d > 5 ==> elemIndex nr5 d == Just 4 ==>
+        transList (T.dropUntil (\i -> i == nr5)) d == drop 4 d
+    where nr5 = d !! 4
+
+
 
 --Main
 main = defaultMain tests
@@ -206,6 +215,11 @@ tests =
         testProperty "2 reduces the number of elements by 2" drop2ReducesLengthBy2,
         testProperty "1 reduces the number of elements by 1" drop1ReducesLengthBy1,
         testProperty "n reduces the number of elements by n" dropNReducesLengthByN
+      ],
+      testGroup "Trans.dropUntil" [
+        testProperty "false yields empty" dropUntilFalseIsEmpty,
+        testProperty "true yields input" dropUntilTrueIsInput,
+        testProperty "dropUntil 5th element is equal to drop 4" dropUntil5thElementIsEqDrop4
       ],
       testGroup "Trans.=$=" [
         testProperty "of two maps should be same as seperate application" mergeOfTwoOfMapShouldBeSameAsSeperate,

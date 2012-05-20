@@ -1,16 +1,19 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Data.SouSiT.Trans (
-    -- * Concrete tranformers
+    -- * Element Tranformers
     id,
     map,
     zipWithIndex,
+    --- * Take / Drop
     take,
     takeUntil,
     takeUntilEq,
+    drop,
+    dropUntil,
+    -- * Accumulation
     accumulate,
-    buffer,
-    drop
+    buffer
 ) where
 
 import Prelude hiding (take, map, id, drop)
@@ -38,7 +41,7 @@ take n | n > 0     = ContTransform (\i -> ([i], take $ n - 1)) []
        | otherwise = EndTransform []
 
 -- | Takes inputs until the input fullfils the predicate. The matching input is not passed on.
-takeUntil :: Eq a => (a -> Bool) -> Transform a a
+takeUntil :: (a -> Bool) -> Transform a a
 takeUntil p = ContTransform (step []) []
     where step sf e | p e       = (sf, EndTransform [])
                     | otherwise = ([], ContTransform (step sf') sf')
@@ -67,3 +70,10 @@ buffer initN initAcc f | initN < 1 = error $ "Cannot buffer " ++ show initN ++ "
 drop :: (Num n, Ord n) => n -> Transform a a
 drop n | n > 0     = ContTransform (\_ -> ([], drop (n - 1))) []
        | otherwise = IdentTransform
+
+-- | Drops inputs until the predicate is matched. The matching input and all subsequent inputs
+-- are passed on unchanged.
+dropUntil :: (a -> Bool) -> Transform a a
+dropUntil p = ContTransform step []
+    where step i | p i       = ([i], IdentTransform)
+                 | otherwise = ([],  ContTransform step [])
