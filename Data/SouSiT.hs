@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, TupleSections, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, UndecidableInstances, ExistentialQuantification #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Data.SouSiT (
     -- * Sink
