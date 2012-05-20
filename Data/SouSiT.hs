@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, TupleSections, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, UndecidableInstances #-}
+{-# LANGUAGE RankNTypes, TupleSections, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, UndecidableInstances, ExistentialQuantification #-}
 
 module Data.SouSiT (
     -- * Sink
@@ -22,14 +22,18 @@ module Data.SouSiT (
     BasicSource2(..),
     -- * Transform
     Transform(..),
+    transformSink,
+    transformSource,
+    mergeTransform,
+    (=$=),
     (=$),
-    ($=),
-    TransformMerger(..)
+    ($=)
 ) where
 
 import Data.Monoid
 import Control.Monad
 import Control.Applicative
+import qualified Control.Category as C
 
 --- | Sink for data. Aggregates data to produce a single result (i.e. an IO).
 data Sink a m r = SinkCont (a -> m (Sink a m r)) (m r)
@@ -137,37 +141,75 @@ infixl 3 =+=
 infixl 3 =+|=
 
 
-
-
-
 -- | A transformation onto a sink
-class Transform t where
-    -- | apply transform to sink
-    transformSink :: Monad m => t a b -> Sink b m r -> Sink a m r
-    -- | apply transform to source
-    transformSource :: (Source src, Monad m) => t a b -> src m a -> BasicSource m b
-    transformSource t src = BasicSource $ transfer src . transformSink t
+data Transform a b = MappingFunTransform (a -> b)
+                   | MappingTransform    (a -> ( b,  Transform a b))
+                   | ContTransform       (a -> ([b], Transform a b)) [b]
+                   | EndTransform        [b]
 
-class (Transform t1, Transform t2, Transform tr) => TransformMerger t1 t2 tr | t1 t2 -> tr where
-    -- | merges two transforms into one
-    (=$=) :: t1 a b -> t2 b c -> tr a c
+instance C.Category Transform where
+    id  = MappingFunTransform id
+    (.) = flip mergeTransform
 
 -- | apply a transform to a sink
-(=$) :: (Transform t, Monad m) => t a b -> Sink b m r -> Sink a m r
+(=$) :: (Monad m) => Transform a b -> Sink b m r -> Sink a m r
 (=$)  = transformSink
 infixl 2 =$
 
 -- | apply a transform to a source
-($=) :: (Transform t, Source src, Monad m) => src m a -> t a b -> BasicSource m b
+($=) :: (Source src, Monad m) => src m a -> Transform a b -> BasicSource m b
 ($=) = flip transformSource
 infixl 1 $=
 
+-- | merges two transforms into one
+(=$=) = mergeTransform
 
--- | A merged application of two transforms.
-data MergedTransform a b = MergedTransform (forall r m . Monad m => Sink b m r -> Sink a m r)
-instance Transform MergedTransform where
-    transformSink (MergedTransform f) = f
+-- | apply transform to source
+transformSource :: (Source src, Monad m) => Transform a b -> src m a -> BasicSource m b
+transformSource t src = BasicSource $ transfer src . transformSink t
 
-genericMerge :: (Transform t1, Transform t2) => t1 a b -> t2 b c -> MergedTransform a c
-genericMerge t1 t2 = MergedTransform $ transformSink t1 . transformSink t2
+-- | Apply a transform to a sink
+transformSink :: Monad m => Transform a b -> Sink b m r -> Sink a m r
+transformSink _ (SinkDone r) = SinkDone r
+transformSink (MappingFunTransform f) s = step s
+    where step (SinkDone r) = SinkDone r
+          step (SinkCont next r) = SinkCont next' r
+            where next' = liftM step . next . f
+transformSink (MappingTransform f) (SinkCont next r) = SinkCont next' r
+    where next' i = let (i', t') = f i in
+            liftM (transformSink t') (next i')
+transformSink (ContTransform tfn tfe) sink = SinkCont next end
+    where next i = liftM (transformSink trans') (feedSinkList es sink)
+            where (es, trans') = tfn i
+          end = feedSinkList tfe sink >>= closeSink
+transformSink (EndTransform es) sink = SinkDone $ feedSinkList es sink >>= closeSink
 
+-- | merges two transforms into one
+mergeTransform :: Transform a b -> Transform b c -> Transform a c
+mergeTransform (MappingFunTransform f1) (MappingFunTransform f2) = MappingFunTransform (f2 . f1)
+mergeTransform _ (EndTransform r) = EndTransform r
+mergeTransform (EndTransform r) t2 = EndTransform $ endTransform $ feedTransform r t2
+mergeTransform (ContTransform f d) t2 = ContTransform next' done'
+    where next' i = (bs, mergeTransform t1' t2')
+            where (as, t1') = f i
+                  (bs, t2') = feedTransform as t2
+          done' = endTransform $ feedTransform d t2
+mergeTransform t1 t2 = mergeTransform (contEndOnly t1) (contEndOnly t2)
+
+contEndOnly t@(MappingFunTransform f) = ContTransform (\i -> ([f i], t)) []
+contEndOnly t@(MappingTransform f) = ContTransform (mapFst (:[]) . f) []
+contEndOnly other = other
+
+mapFst f (a,b) = (f a, b)
+
+endTransform (bs, t) = bs ++ closeTransform t
+
+closeTransform (EndTransform bs)    = bs
+closeTransform (ContTransform _ bs) = bs
+closeTransform _ = []
+
+feedTransform :: [a] -> Transform a b -> ([b], Transform a b)
+feedTransform es t = step [] es t
+    where step outs []     t = (outs, t)
+          step outs (e:es) (ContTransform next done) = let (r, t') = next e in step (outs ++ r) es t'
+          step outs rest done = (outs, done) --'rest' is lost
