@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RankNTypes, GADTs, NoMonoLocalBinds #-}
 
 module Data.SouSiT (
     -- * Sink
@@ -146,10 +146,18 @@ infixl 3 =+|=
 
 
 -- | A transformation onto a sink
+data Transform a b where
+    IdentTransform      :: Transform a a
+    MappingFunTransform :: (a -> b) -> Transform a b
+    MappingTransform    :: (a -> ( b,  Transform a b)) -> Transform a b
+    ContTransform       :: (a -> ([b], Transform a b)) -> [b] -> Transform a b
+    EndTransform        :: [b] -> Transform a b
+{-
 data Transform a b = MappingFunTransform (a -> b)
                    | MappingTransform    (a -> ( b,  Transform a b))
                    | ContTransform       (a -> ([b], Transform a b)) [b]
                    | EndTransform        [b]
+-}
 
 instance C.Category Transform where
     id  = MappingFunTransform id
@@ -170,10 +178,12 @@ infixl 1 $=
 
 -- | apply transform to source
 transformSource :: (Source src, Monad m) => Transform a b -> src m a -> BasicSource m b
+transformSource IdentTransform src = BasicSource $ transfer src
 transformSource t src = BasicSource $ transfer src . transformSink t
 
 -- | Apply a transform to a sink
 transformSink :: Monad m => Transform a b -> Sink b m r -> Sink a m r
+transformSink IdentTransform sink = sink
 transformSink _ (SinkDone r) = SinkDone r
 transformSink (MappingFunTransform f) s = step s
     where step (SinkDone r) = SinkDone r
@@ -190,6 +200,8 @@ transformSink (EndTransform es) sink = SinkDone $ feedSinkList es sink >>= close
 
 -- | merges two transforms into one
 mergeTransform :: Transform a b -> Transform b c -> Transform a c
+mergeTransform IdentTransform t = t
+mergeTransform t IdentTransform = t
 mergeTransform (MappingFunTransform f1) (MappingFunTransform f2) = MappingFunTransform (f2 . f1)
 mergeTransform _ (EndTransform r) = EndTransform r
 mergeTransform (EndTransform r) t2 = EndTransform $ endTransform $ feedTransform r t2
@@ -200,9 +212,12 @@ mergeTransform (ContTransform f d) t2 = ContTransform next' done'
           done' = endTransform $ feedTransform d t2
 mergeTransform t1 t2 = mergeTransform (contEndOnly t1) (contEndOnly t2)
 
+-- | Converts all transformers to either ContTransform or EndTransform
 contEndOnly t@(MappingFunTransform f) = ContTransform (\i -> ([f i], t)) []
-contEndOnly t@(MappingTransform f) = ContTransform (mapFst (:[]) . f) []
-contEndOnly other = other
+contEndOnly (MappingTransform f) = ContTransform (mapFst (:[]) . f) []
+contEndOnly IdentTransform = ContTransform (\i -> ([i], IdentTransform)) []
+contEndOnly t@(ContTransform _ _) = t
+contEndOnly t@(EndTransform _) = t
 
 mapFst f (a,b) = (f a, b)
 
