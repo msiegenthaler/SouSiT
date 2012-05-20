@@ -61,3 +61,14 @@ buffer initN initAcc f | initN < 1 = error $ "Cannot buffer " ++ show initN ++ "
             where next i = ([f acc i], step initN initAcc)
           step n acc = ContTransform next [acc] 
             where next i = ([], step (n-1) (f acc i))
+
+
+loop :: Transform a b -> Transform a b
+loop t@(MappingFunTransform _) = t
+loop t@(MappingTransform _) = t
+loop t = step t
+    where step t 
+
+
+
+
