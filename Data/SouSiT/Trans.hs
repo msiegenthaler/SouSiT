@@ -18,12 +18,13 @@ module Data.SouSiT.Trans (
     buffer,
     -- * Chaining/Looping
     loop,
-    loopN
+    loopN,
+    sequence
 ) where
 
-import Prelude hiding (id, map, take, takeWhile, drop, dropWhile)
+import Prelude hiding (id, map, take, takeWhile, drop, dropWhile, sequence)
 import qualified Prelude as P
-import Control.Monad
+import Control.Monad hiding (sequence)
 import Data.SouSiT
 
 
@@ -121,3 +122,20 @@ loopN n (ContTransform on od) = ContTransform (conv n on) od
                         if n > 1 then (es ++ r, ContTransform (conv (n-1) on) od)
                         else (es ++ r, EndTransform [])
 loopN _ t = t
+
+-- | Executes the given transforms in a sequence, as soon as one is EndTransform the next input
+-- is passed to the next transform.
+sequence :: [Transform a b] -> Transform a b
+sequence [] = EndTransform []
+sequence [t:ts] = case t of
+    IdentTransform            -> IdentTransform
+    t@(MappingFunTransform _) -> t
+    t@(MappingTransform _)    
+
+
+
+
+
+
+
+
