@@ -96,30 +96,11 @@ dropWhile f = dropUntil (not . f)
 
 -- | Loops the given transform forever.
 loop :: Transform a b -> Transform a b
-loop (EndTransform r) = ContTransform step r
-    where step _ = (r, ContTransform step r)
-loop (ContTransform on od) = ContTransform (conv on) od
-    where conv next i = let (es, nt) = next i in case nt of
-                    IdentTransform            -> (es, IdentTransform)
-                    t@(MappingTransform _) -> (es, t)
-                    (ContTransform n d)       -> (es, ContTransform (conv n) d)
-                    (EndTransform r)          -> (es ++ r, ContTransform (conv on) od)
-loop t = t
+loop = sequence . repeat
 
 -- | Loops the given transform n times
-loopN :: (Num n, Ord n) => n -> Transform a b -> Transform a b
-loopN n (EndTransform r) = ContTransform (step n) r
-    where step n _ | n > 0     = (r, ContTransform (step (n-1)) r)
-                   | otherwise = (r, (EndTransform []))
-loopN n (ContTransform on od) = ContTransform (conv n on) od
-    where conv n next i = let (es, nt) = next i in case nt of
-                    IdentTransform            -> (es, IdentTransform)
-                    t@(MappingTransform _) -> (es, t)
-                    (ContTransform nf d)      -> (es, ContTransform (conv n nf) d)
-                    (EndTransform r)          ->
-                        if n > 1 then (es ++ r, ContTransform (conv (n-1) on) od)
-                        else (es ++ r, EndTransform [])
-loopN _ t = t
+loopN :: Int -> Transform a b -> Transform a b
+loopN n =  sequence . P.take n . repeat
 
 -- | Executes the given transforms in a sequence, as soon as one is EndTransform the next input
 -- is passed to the next transform.
