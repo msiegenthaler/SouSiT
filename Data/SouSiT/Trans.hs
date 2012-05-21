@@ -34,13 +34,13 @@ id = IdentTransform
 
 -- | Transforms each input individually by applying the function.
 map :: (a -> b) -> Transform a b
-map = MappingFunTransform
+map = MappingTransform
 
 -- | Transforms each input to a tuple (input, index of input).
 -- I.e. for "Mario": (M, 0), (a, 1), (r, 2), (i, 3), (o, 4)
 zipWithIndex :: Transform a (a, Int)
-zipWithIndex = MappingTransform $ step 0
-    where step nr i = ((i, nr), MappingTransform $ step (succ nr))
+zipWithIndex = ContTransform (step 0) []
+    where step nr i =([(i, nr)], ContTransform (step (succ nr)) [])
 
 -- | Takes only the first n inputs, then returns done.
 take :: (Num n, Ord n) => n -> Transform a a
@@ -101,8 +101,7 @@ loop (EndTransform r) = ContTransform step r
 loop (ContTransform on od) = ContTransform (conv on) od
     where conv next i = let (es, nt) = next i in case nt of
                     IdentTransform            -> (es, IdentTransform)
-                    t@(MappingFunTransform _) -> (es, t)
-                    t@(MappingTransform _)    -> (es, t)
+                    t@(MappingTransform _) -> (es, t)
                     (ContTransform n d)       -> (es, ContTransform (conv n) d)
                     (EndTransform r)          -> (es ++ r, ContTransform (conv on) od)
 loop t = t
@@ -115,8 +114,7 @@ loopN n (EndTransform r) = ContTransform (step n) r
 loopN n (ContTransform on od) = ContTransform (conv n on) od
     where conv n next i = let (es, nt) = next i in case nt of
                     IdentTransform            -> (es, IdentTransform)
-                    t@(MappingFunTransform _) -> (es, t)
-                    t@(MappingTransform _)    -> (es, t)
+                    t@(MappingTransform _) -> (es, t)
                     (ContTransform nf d)      -> (es, ContTransform (conv n nf) d)
                     (EndTransform r)          ->
                         if n > 1 then (es ++ r, ContTransform (conv (n-1) on) od)
