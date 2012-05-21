@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs #-}
 
 module Data.SouSiT.Trans (
-    -- * Element Tranformers
+    -- * Element Transformation
     id,
     map,
     zipWithIndex,
@@ -16,7 +16,7 @@ module Data.SouSiT.Trans (
     -- * Accumulation
     accumulate,
     buffer,
-    -- * Looping
+    -- * Chaining/Looping
     loop,
     loopN
 ) where
