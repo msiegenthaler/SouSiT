@@ -214,6 +214,14 @@ loopNTakeNEqOriginal :: Int -> Int -> Property
 loopNTakeNEqOriginal n m = n > 0 ==> m > 0 ==> n < 100 ==> m < 100 ==>
         transList (T.loopN n (T.take m)) [1..] == take (m*n) [1..]
 
+
+-- sequence
+sequenceTakeNDrop1RemovesOneElement d n = n < length d ==> length d > 0 ==>
+        transList (T.sequence [T.take n, T.drop 1]) d == removeAt n d
+    where removeAt n xs = let (ys,zs) = splitAt n xs in ys ++ (tail zs)
+
+
+
 --Main
 main = defaultMain tests
 
@@ -289,6 +297,9 @@ tests =
       testGroup "Trans.loopN" [
         testProperty "take m is the same as take (m*n) of the original list" loopNTakeNEqOriginal,
         testProperty "on drop 1 >>> take 1 on [1..] should be (take n [2,4..])" loopNDropTake
+      ],
+      testGroup "Trans.sequence" [
+        testProperty "[take n, drop 1] removes nth element" sequenceTakeNDrop1RemovesOneElement
       ],
       testGroup "Trans.=$=" [
         testProperty "of two maps should be same as seperate application" mergeOfTwoOfMapShouldBeSameAsSeperate,

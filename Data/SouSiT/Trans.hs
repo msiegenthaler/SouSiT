@@ -124,16 +124,14 @@ loopN _ t = t
 -- | Executes the given transforms in a sequence, as soon as one is EndTransform the next input
 -- is passed to the next transform.
 sequence :: [Transform a b] -> Transform a b
-sequence [] = EndTransform []
-sequence [t:ts] = case t of
-    IdentTransform            -> IdentTransform
-    t@(MappingFunTransform _) -> t
-    t@(MappingTransform _)    
+sequence = sequence2 []
 
-
-
-
-
-
-
-
+sequence2 :: [b] -> [Transform a b] -> Transform a b
+sequence2 r  [] = EndTransform r
+sequence2 [] (IdentTransform:_) = IdentTransform
+sequence2 r  (IdentTransform:_) = ContTransform (\i -> (r ++ [i], IdentTransform)) r
+sequence2 [] ((MappingTransform f):_) = MappingTransform f
+sequence2 r  ((MappingTransform f):_) = ContTransform (\i -> (r ++ [f i], MappingTransform f)) r
+sequence2 r  ((EndTransform r2):ts) = sequence2 (r ++ r2) ts
+sequence2 r  ((ContTransform next done):ts) = ContTransform step (r ++ done)
+    where step i = let (es,t') = next i in (r ++ es, sequence2 [] (t':ts))
