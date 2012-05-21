@@ -148,19 +148,12 @@ infixl 3 =+|=
 -- | A transformation onto a sink
 data Transform a b where
     IdentTransform      :: Transform a a
-    MappingFunTransform :: (a -> b) -> Transform a b
-    MappingTransform    :: (a -> ( b,  Transform a b)) -> Transform a b
+    MappingTransform :: (a -> b) -> Transform a b
     ContTransform       :: (a -> ([b], Transform a b)) -> [b] -> Transform a b
     EndTransform        :: [b] -> Transform a b
-{-
-data Transform a b = MappingFunTransform (a -> b)
-                   | MappingTransform    (a -> ( b,  Transform a b))
-                   | ContTransform       (a -> ([b], Transform a b)) [b]
-                   | EndTransform        [b]
--}
 
 instance C.Category Transform where
-    id  = MappingFunTransform id
+    id  = MappingTransform id
     (.) = flip mergeTransform
 
 -- | apply a transform to a sink
@@ -185,13 +178,10 @@ transformSource t src = BasicSource $ transfer src . transformSink t
 transformSink :: Monad m => Transform a b -> Sink b m r -> Sink a m r
 transformSink IdentTransform sink = sink
 transformSink _ (SinkDone r) = SinkDone r
-transformSink (MappingFunTransform f) s = step s
+transformSink (MappingTransform f) s = step s
     where step (SinkDone r) = SinkDone r
           step (SinkCont next r) = SinkCont next' r
             where next' = liftM step . next . f
-transformSink (MappingTransform f) (SinkCont next r) = SinkCont next' r
-    where next' i = let (i', t') = f i in
-            liftM (transformSink t') (next i')
 transformSink (ContTransform tfn tfe) sink = SinkCont next end
     where next i = liftM (transformSink trans') (feedSinkList es sink)
             where (es, trans') = tfn i
@@ -202,7 +192,7 @@ transformSink (EndTransform es) sink = SinkDone $ feedSinkList es sink >>= close
 mergeTransform :: Transform a b -> Transform b c -> Transform a c
 mergeTransform IdentTransform t = t
 mergeTransform t IdentTransform = t
-mergeTransform (MappingFunTransform f1) (MappingFunTransform f2) = MappingFunTransform (f2 . f1)
+mergeTransform (MappingTransform f1) (MappingTransform f2) = MappingTransform (f2 . f1)
 mergeTransform _ (EndTransform r) = EndTransform r
 mergeTransform (EndTransform r) t2 = EndTransform $ endTransform $ feedTransform r t2
 mergeTransform (ContTransform f d) t2 = ContTransform next' done'
@@ -213,8 +203,7 @@ mergeTransform (ContTransform f d) t2 = ContTransform next' done'
 mergeTransform t1 t2 = mergeTransform (contEndOnly t1) (contEndOnly t2)
 
 -- | Converts all transformers to either ContTransform or EndTransform
-contEndOnly t@(MappingFunTransform f) = ContTransform (\i -> ([f i], t)) []
-contEndOnly (MappingTransform f) = ContTransform (mapFst (:[]) . f) []
+contEndOnly t@(MappingTransform f) = ContTransform (\i -> ([f i], t)) []
 contEndOnly IdentTransform = ContTransform (\i -> ([i], IdentTransform)) []
 contEndOnly t@(ContTransform _ _) = t
 contEndOnly t@(EndTransform _) = t
@@ -230,8 +219,7 @@ closeTransform _ = []
 feedTransform :: [a] -> Transform a b -> ([b], Transform a b)
 feedTransform es t = step [] es t
     where step outs []     t = (outs, t)
-          step outs es   t@(MappingFunTransform f) = (outs ++ map f es, t)
-          step outs (e:es) (MappingTransform f) = let (r, t') = f e in step (outs ++ [r]) es t'
+          step outs es   t@(MappingTransform f) = (outs ++ map f es, t)
           step outs (e:es) (ContTransform f _)  = let (r, t') = f e in step (outs ++ r) es t'
           step outs rest t@(EndTransform _) = (outs, t) --'rest' is lost
 
