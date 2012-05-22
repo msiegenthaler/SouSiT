@@ -16,6 +16,8 @@ module Data.SouSiT.Trans (
     -- * Accumulation
     accumulate,
     buffer,
+    -- * Dispersing
+    disperse,
     -- * Chaining/Looping
     loop,
     loopN,
@@ -76,6 +78,10 @@ buffer initN initAcc f | initN < 1 = error $ "Cannot buffer " ++ show initN ++ "
             where next i = ([f acc i], step initN initAcc)
           step n acc = ContTransform next [acc] 
             where next i = ([], step (n-1) (f acc i))
+
+-- | Yield all elements of the array as seperate outputs.
+disperse :: Transform [a] a
+disperse = ContTransform (\i -> (i, disperse)) []
 
 -- | Drops the first n inputs then passes through all inputs unchanged
 drop :: (Num n, Ord n) => n -> Transform a a

@@ -221,6 +221,16 @@ sequenceTakeNDrop1RemovesOneElement d n = n < length d ==> length d > 0 ==>
     where removeAt n xs = let (ys,zs) = splitAt n xs in ys ++ (tail zs)
 
 
+-- disperse
+disperseMerges3 d1 d2 d3 = transList' T.disperse [d1,d2,d3] == d1 ++ d2 ++ d3
+
+disperseMergeEmpty d1 d2 d3 =
+    transList' T.disperse [[],d1,[],d2,[],[],d3,[],[],[]] == d1 ++ d2 ++ d3
+
+transList' :: Transform [Int] Int -> [[Int]] -> [Int]
+transList' t l = run (listSource l $$ t =$ listSink)
+
+
 
 --Main
 main = defaultMain tests
@@ -273,6 +283,10 @@ tests =
         testProperty "does not change elements (when concat'ed)" bufferDoesNotChangeElements,
         testProperty "makes blocks with specified size" bufferMakesBlocksWithSpecifiedSize,
         testProperty "last block has n mod x elements" buffersLastBlockHasNmodXElements
+      ],
+      testGroup "Trans.disperse" [
+        testProperty "merges three inputs" disperseMerges3,
+        testProperty "does not change when empty arrays are input" disperseMergeEmpty
       ],
       testGroup "Trans.drop" [
         testProperty "2 reduces the number of elements by 2" drop2ReducesLengthBy2,
