@@ -21,7 +21,10 @@ module Data.SouSiT.Trans (
     -- * Chaining/Looping
     loop,
     loopN,
-    sequence
+    sequence,
+    -- * Handling of Either
+    eitherRight,
+    eitherLeft
 ) where
 
 import Prelude hiding (id, map, take, takeWhile, drop, dropWhile, sequence)
@@ -122,3 +125,15 @@ sequence2 r  ((MappingTransform f):_) = ContTransform (\i -> (r ++ [f i], Mappin
 sequence2 r  ((EndTransform r2):ts) = sequence2 (r ++ r2) ts
 sequence2 r  ((ContTransform next done):ts) = ContTransform step (r ++ done)
     where step i = let (es,t') = next i in (r ++ es, sequence2 [] (t':ts))
+
+-- | Only lets the 'rights' of Either pass.
+eitherRight :: Transform (Either a b) b
+eitherRight = ContTransform step []
+    where step (Right a) = ([a], eitherRight)
+          step _         = ([],  eitherRight)
+
+-- | Only lets the 'lefts' of Either pass.
+eitherLeft :: Transform (Either a b) a
+eitherLeft = ContTransform step []
+    where step (Left a) = ([a], eitherLeft)
+          step _        = ([],  eitherLeft)
