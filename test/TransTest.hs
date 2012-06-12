@@ -231,6 +231,15 @@ transList' :: Transform [Int] Int -> [[Int]] -> [Int]
 transList' t l = run (listSource l $$ t =$ listSink)
 
 
+-- filter
+
+filterTrue d = transList (T.filter (\i -> True)) d == d
+
+filterFalse d = transList (T.filter (\i -> False)) d == []
+
+filterSameAsPrelude d = transList (T.filter odd) d == filter odd d
+
+
 
 --Main
 main = defaultMain tests
@@ -314,6 +323,11 @@ tests =
       ],
       testGroup "Trans.sequence" [
         testProperty "[take n, drop 1] removes nth element" sequenceTakeNDrop1RemovesOneElement
+      ],
+      testGroup "Trans.filter" [
+        testProperty "True should retain all elements" filterTrue,
+        testProperty "True should retain no elements" filterFalse,
+        testProperty "is the same as Prelude.filter (with odd)" filterSameAsPrelude
       ],
       testGroup "Trans.=$=" [
         testProperty "of two maps should be same as seperate application" mergeOfTwoOfMapShouldBeSameAsSeperate,

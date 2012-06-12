@@ -13,6 +13,8 @@ module Data.SouSiT.Trans (
     drop,
     dropUntil,
     dropWhile,
+    -- * Filter
+    filter,
     -- * Accumulation
     accumulate,
     buffer,
@@ -27,7 +29,7 @@ module Data.SouSiT.Trans (
     eitherLeft
 ) where
 
-import Prelude hiding (id, map, take, takeWhile, drop, dropWhile, sequence)
+import Prelude hiding (id, map, take, takeWhile, drop, dropWhile, sequence, filter)
 import qualified Prelude as P
 import Control.Monad hiding (sequence)
 import Data.SouSiT
@@ -102,6 +104,14 @@ dropUntil p = ContTransform step []
 -- following inputs are passed on unchanged.
 dropWhile :: (a -> Bool) -> Transform a a
 dropWhile f = dropUntil (not . f)
+
+
+-- | Only retains elements that match the filter function
+filter :: (a -> Bool) -> Transform a a
+filter f = ContTransform step []
+    where step i | f i       = ([i], filter f)
+                 | otherwise = ([],  filter f)
+
 
 -- | Loops the given transform forever.
 loop :: Transform a b -> Transform a b
