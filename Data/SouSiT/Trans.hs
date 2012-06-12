@@ -13,8 +13,10 @@ module Data.SouSiT.Trans (
     drop,
     dropUntil,
     dropWhile,
-    -- * Filter
+    -- * Filter / FlatMap
     filter,
+    filterMap,
+    flatMap,
     -- * Accumulation
     accumulate,
     buffer,
@@ -112,6 +114,17 @@ filter f = ContTransform step []
     where step i | f i       = ([i], filter f)
                  | otherwise = ([],  filter f)
 
+-- | Map that allows to filter out elements.
+filterMap :: (a -> Maybe b) -> Transform a b
+filterMap f = ContTransform step []
+    where step i = case f i of
+                (Just v) -> ([v], ContTransform step [])
+                Nothing  -> ([],  ContTransform step [])
+
+-- | Applies a function to each element and passes on every element of the result list seperatly.
+flatMap :: (a -> [b]) -> Transform a b
+flatMap f = ContTransform step []
+    where step i = (f i, ContTransform step [])
 
 -- | Loops the given transform forever.
 loop :: Transform a b -> Transform a b

@@ -240,6 +240,29 @@ filterFalse d = transList (T.filter (\i -> False)) d == []
 filterSameAsPrelude d = transList (T.filter odd) d == filter odd d
 
 
+-- filterMap
+
+filterMapNothing d = transList (T.filterMap (\i -> Nothing)) d == ([] :: [Int])
+
+filterMapJust d = transList (T.filterMap Just) d == d
+
+filterMapDiv2 d = transList (T.filterMap div2) d ==
+        transList (T.filter even =$= T.map (`div` 2)) d
+
+div2 i | even i    = Just (i `div` 2)
+       | otherwise = Nothing
+
+
+-- flatMap
+
+flatMapEmpty d = transList (T.flatMap (\i -> [])) d == ([] :: [Int])
+
+flatMapId d = transList (T.flatMap (:[])) d == d
+
+flatMap1s d = transList (T.flatMap (\i -> [1])) d == take (length d) (repeat 1)
+
+flatMapDouble d = transList (T.flatMap dbl) d == join (map dbl d)
+    where dbl i = [i,i]
 
 --Main
 main = defaultMain tests
@@ -326,8 +349,19 @@ tests =
       ],
       testGroup "Trans.filter" [
         testProperty "True should retain all elements" filterTrue,
-        testProperty "True should retain no elements" filterFalse,
+        testProperty "False should retain no elements" filterFalse,
         testProperty "is the same as Prelude.filter (with odd)" filterSameAsPrelude
+      ],
+      testGroup "Trans.filterMap" [
+        testProperty "Nothing should drop all elements" filterMapNothing,
+        testProperty "Just should retail all elements" filterMapJust,
+        testProperty "Div2 should be the same as filtering by even and then mapping (/2)" filterMapDiv2
+      ],
+      testGroup "Trans.flatMap" [
+        testProperty "[] should drop all elements" flatMapEmpty,
+        testProperty "[1] should be same length list of 1s" flatMap1s,
+        testProperty "[e] should be the input" flatMapId,
+        testProperty "[e,e] should be the input with each element repeated twice" flatMapDouble
       ],
       testGroup "Trans.=$=" [
         testProperty "of two maps should be same as seperate application" mergeOfTwoOfMapShouldBeSameAsSeperate,
