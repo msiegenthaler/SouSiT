@@ -6,6 +6,7 @@ module Data.SouSiT (
     closeSink,
     feedSink,
     feedSinkList,
+    decorateSink,
     concatSink,
     (=|=),
     appendSink,
@@ -18,6 +19,7 @@ module Data.SouSiT (
     concatSources,
     (=+=),
     (=+|=),
+    decorateSource,
     BasicSource(..),
     BasicSource2(..),
     -- * Transform
