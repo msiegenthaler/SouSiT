@@ -8,9 +8,11 @@ Allows to build pipelines such as
 
 Available Sources at the moment:
  - List
+ - Handle (IO)
  - File
 
 Available Sinks at the moment:
  - List
+ - Handle (IO)
  - File
 
