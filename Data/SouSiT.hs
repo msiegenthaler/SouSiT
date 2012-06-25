@@ -48,6 +48,11 @@ mapSink f (SinkCont next r) = SinkCont (mapSinkF . next) (fmap f r)
     where mapSinkF = fmap (mapSink f)
 mapSink f (SinkDone r)      = SinkDone $ fmap f r
 
+-- | Decorates a Sink with a monadic function. Can be used to produce debug output and such.
+decorateSink df (SinkCont next done) = SinkCont next' done
+    where next' i = liftM (decorateSink df) (df i >> next i)
+decorateSink df (SinkDone done) = SinkDone done
+
 -- | Close the sink and return its result
 closeSink :: Sink a m r -> m r
 closeSink (SinkDone r) = r
@@ -129,6 +134,10 @@ concatSources src1 src2 = BasicSource f
 concatSources2 :: (Source2 src1, Source2 src2, Monad m) => src1 m a -> src2 m a -> BasicSource2 m a
 concatSources2 src1 src2 = BasicSource2 f
     where f sink = feedToSink src1 sink >>= feedToSink src2
+
+-- | Decorates a Source with a monadic function. Can be used to produce debug output and such.
+decorateSource df src = BasicSource step
+    where step sink = transfer src (decorateSink df sink)
 
 -- | Concatenates two sources.
 (=+=) :: (Source2 src1, Source2 src2, Monad m) => src1 m a -> src2 m a -> BasicSource2 m a
