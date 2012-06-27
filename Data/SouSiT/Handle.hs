@@ -3,6 +3,8 @@ module Data.SouSiT.Handle (
     HSource,
     hSource,
     hSource',
+    hSourceNoEOF,
+    hSourceNoEOF',
     -- * Sink
     HSink,
     hSink,
@@ -16,9 +18,13 @@ import System.IO
 -- | Source for file IO-handle operations
 type HSource a = BasicSource2 IO a
 
+
+-- | Source from a handle. The handle will not be closed and is read till hIsEOF.
 hSource :: (Handle -> IO a) -> Handle -> HSource a
 hSource get h = BasicSource2 (readNext get h)
 
+-- | Same as hSource, but opens the handle when transfer is called and closes it when
+--   all data is read.
 hSource' :: (Handle -> IO a) -> IO Handle -> HSource a
 hSource' get open = BasicSource2 step
     where step sink = do h <- open; readNext get h sink
@@ -27,6 +33,19 @@ readNext get h sink@(SinkCont f _) = hIsEOF h >>= step
     where step True  = return sink
           step False = get h >>= f >>= readNext get h
 readNext _   _ done = return done
+
+
+-- | Same as hSource, but does not check for hIsEOF and therefore never terminates.
+hSourceNoEOF :: (Handle -> IO a) -> Handle -> HSource a
+hSourceNoEOF get h = BasicSource2 (readNextNoEOF get h)
+
+-- | Same as hSource', but does not check for hIsEOF and therefore never terminates.
+hSourceNoEOF' :: (Handle -> IO a) -> IO Handle -> HSource a
+hSourceNoEOF' get open = BasicSource2 step
+    where step sink = do h <- open; readNextNoEOF get h sink
+
+readNextNoEOF get h sink@(SinkCont f _) = get h >>= f >>= readNextNoEOF get h
+readNextNoEOF _   _ done = return done
 
 
 
