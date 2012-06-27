@@ -46,10 +46,10 @@ Cabal-version:       >= 1.9.2
 Library
   -- Modules exported by the library.
   Exposed-modules: Data.SouSiT, Data.SouSiT.Trans, Data.SouSiT.List, Data.SouSiT.File,
-                   Data.SouSiT.Handle
+                   Data.SouSiT.Handle, Data.SouSiT.STM
   
   -- Packages needed in order to build this package.
-  Build-depends: base > 4, bytestring
+  Build-depends: base > 4, bytestring, stm
   
   -- Modules not exported by this package.
   -- Other-modules:       
