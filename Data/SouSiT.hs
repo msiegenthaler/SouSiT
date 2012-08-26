@@ -19,6 +19,7 @@ module Data.SouSiT (
     decorateSink,
     actionSink,
     openCloseActionSink,
+    maybeSink,
     -- * Source
     Source,
     transfer,
@@ -137,8 +138,16 @@ actionSink process = contSink f (return ())
 openCloseActionSink :: Monad m => m a -> (a -> m ()) -> (a -> i -> m ()) -> Sink i m ()
 openCloseActionSink open close process = contSink first (return ())
     where first i = open >>= flip handle i
-          handle rs i = process rs i >> (return $ Sink $ return $ Cont (handle rs) (close rs))
+          handle rs i = process rs i >> return (contSink (handle rs) (close rs))
 
+-- | Sink that executes f for every input.
+--   The sink continues as long as the action returns Nothing, when the action returns
+--   Just, then that value is the result of the sink (and the sink is 'full').
+maybeSink :: Monad m => (i -> m (Maybe r)) -> Sink i m (Maybe r)
+maybeSink f = contSink step (return Nothing)
+  where step i = f i >>= cont
+        cont Nothing = return $ maybeSink f
+        cont result = return $ doneSink' result
 
 
 
