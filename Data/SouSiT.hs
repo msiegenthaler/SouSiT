@@ -22,6 +22,7 @@ module Data.SouSiT (
     maybeSink,
     -- * Source
     Source,
+    Source2,
     transfer,
     BasicSource(..),
     BasicSource2(..),
