@@ -77,13 +77,13 @@ accumulateAlwaysReturnsASingleElement d = length (transList (T.accumulate () noo
 bufferDoesNotChangeElements d = concat (transList (T.buffer 3 [] listAcc) d) == d
 
 bufferMakesBlocksWithSpecifiedSize :: [Int] -> Int -> Property
-bufferMakesBlocksWithSpecifiedSize d n = n < 20 && n > 0 ==>
+bufferMakesBlocksWithSpecifiedSize d n' = let n = n' `mod` 20 in n > 0 ==>
         (length $ takeWhile (==3) (map length l)) == (length d) `div` 3
     where l = transList (T.buffer 3 [] listAcc) d
 
-buffersLastBlockHasNmodXElements d n = n < 20 && n > 0 ==>
-        length (last l) == (length d) `mod` n
+buffersLastBlockHasNmodXElements d n' = length (last l) == (length d) `mod` n
     where l = transList (T.buffer n [] listAcc) d
+          n = (n' `mod` 20) + 1
 
 listAcc l = (l ++) . (:[])
 
@@ -151,7 +151,7 @@ drop2ReducesLengthBy2 d = length (transList (T.drop 2) d) == (max 0 ((length d) 
 
 drop1ReducesLengthBy1 d = length (transList (T.drop 1) d) == (max 0 ((length d) - 1))
 
-dropNReducesLengthByN d n = n >= 0 && n < 100 ==>
+dropNReducesLengthByN d n' = let n = n' `mod` 100 in n >= 0 ==>
     length (transList (T.drop n) d) == (max 0 ((length d) - n))
 
 
@@ -172,10 +172,10 @@ takeWhileFalseIsEmpty d = transList (T.takeWhile (\_ -> False)) d == []
 
 takeWhileTrueIsInput d = transList (T.takeWhile (\_ -> True)) d == d
 
-takeWhileSmallerOnAscending n = n > 0 && n < 200 ==>
+takeWhileSmallerOnAscending n' = let n = (n' `mod` 100) + 1 in
         transList (T.takeWhile (<n)) [1,2..] == transList (T.take (n-1)) [1,2..]
 
-takeWhileSmallerOnOccTwice n = n > 0 && n < 99 ==>
+takeWhileSmallerOnOccTwice n' = let n = n' `mod` 99 in n > 0 ==>
         transList (T.takeWhile (<n)) l == transList (T.take (n-1)) l
     where l = [1..100] ++ [1..100]
 
@@ -186,32 +186,33 @@ dropWhileFalseIsInput d = transList (T.dropWhile (\_ -> False)) d == d
 
 dropWhileTrueIsEmpty d = transList (T.dropWhile (\_ -> True)) d == []
 
-dropWhileSmallerOnAscending n = n > 0 && n < 200 ==>
+dropWhileSmallerOnAscending n' = let n = n' `mod` 200 in n > 0 ==>
         transList (T.dropWhile (<n)) l == transList (T.drop (n-1)) l
     where l = [1..1000]
 
-dropWhileSmallerOnOccTwice n = n > 0 && n < 99 ==>
+dropWhileSmallerOnOccTwice n' = let n = n' `mod` 99 in n > 0 ==>
         transList (T.dropWhile (<n)) l == transList (T.drop (n-1)) l
     where l = [1..100] ++ [1..100]
 
 
 -- loop
 
-loopDropTake n = n > 0 ==> n < 1000 ==>
+loopDropTake n' = let n = n' `mod` 1000 in n > 0 ==>
         transList (T.loop (T.drop 1 =$= T.take 1)) [1..n] == [2,4..n]
 
 loopTakeNEqOriginal :: [Int] -> Int -> Property
-loopTakeNEqOriginal d n = n > 0 ==> n < 100 ==>
-        transList (T.loop (T.take n)) d == d
+loopTakeNEqOriginal d n = length d < 200 ==> let n' = n `mod` 100 in n' > 0 ==>
+        transList (T.loop (T.take n')) d == d
 
 
 -- loopN
 
-loopNDropTake n = n > 0 ==> n < 1000 ==>
+loopNDropTake n' = let n = n' `mod` 1000 in n > 0 ==>
         transList (T.loopN n (T.drop 1 =$= T.take 1)) [1..] == take n [2,4..]
 
 loopNTakeNEqOriginal :: Int -> Int -> Property
-loopNTakeNEqOriginal n m = n > 0 ==> m > 0 ==> n < 100 ==> m < 100 ==>
+loopNTakeNEqOriginal n' m' = let n = n' `mod` 20
+                                 m = m' `mod` 20 in n > 0 ==> m > 0  ==>
         transList (T.loopN n (T.take m)) [1..] == take (m*n) [1..]
 
 
