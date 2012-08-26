@@ -13,41 +13,33 @@ module Data.SouSiT.Handle (
 
 import Data.SouSiT
 import System.IO
+import Control.Monad
 
 
 -- | Source for file IO-handle operations
 type HSource a = BasicSource2 IO a
 
-
 -- | Source from a handle. The handle will not be closed and is read till hIsEOF.
 hSource :: (Handle -> IO a) -> Handle -> HSource a
-hSource get h = BasicSource2 (readAll get h)
+hSource get = actionSource . toEof get
 
 -- | Same as hSource, but opens the handle when transfer is called and closes it when
 --   all data is read.
 hSource' :: (Handle -> IO a) -> IO Handle -> HSource a
-hSource' get open = BasicSource2 step
-    where step sink = do h <- open; readAll get h sink
+hSource' get open = bracketActionSource open hClose (toEof get)
 
-readAll get h sink = do status <- sinkStatus sink
-                        eof <- hIsEOF h
-                        step status eof
-    where step (Cont f _) False = get h >>= f >>= readAll get h
-          step _ _ = return sink
+toEof get h = hIsEOF h >>= next
+    where next True  = return Nothing
+          next False = liftM Just (get h)
 
 
 -- | Same as hSource, but does not check for hIsEOF and therefore never terminates.
 hSourceNoEOF :: (Handle -> IO a) -> Handle -> HSource a
-hSourceNoEOF get h = BasicSource2 (readAllNoEOF get h)
+hSourceNoEOF get = actionSource . liftM Just . get
 
 -- | Same as hSource', but does not check for hIsEOF and therefore never terminates.
 hSourceNoEOF' :: (Handle -> IO a) -> IO Handle -> HSource a
-hSourceNoEOF' get open = BasicSource2 step
-    where step sink = do h <- open; readAllNoEOF get h sink
-
-readAllNoEOF get h sink = sinkStatus sink >>= step
-    where step (Done r) = return sink
-          step (Cont f _) = get h >>= f >>= readAllNoEOF get h
+hSourceNoEOF' get open = bracketActionSource open hClose (liftM Just . get)
 
 
 -- | Sink for file IO-handle operations

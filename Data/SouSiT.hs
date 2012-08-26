@@ -31,7 +31,10 @@ module Data.SouSiT (
     concatSources,
     (=+=),
     (=+|=),
+    -- ** source construction
     decorateSource,
+    actionSource,
+    bracketActionSource,
     -- * Transform
     Transform(..),
     transformSink,
@@ -46,6 +49,8 @@ import Data.Monoid
 import Control.Monad
 import Control.Applicative
 import qualified Control.Category as C
+import Control.Exception
+
 
 --- | Sink for data. Aggregates data to produce a single (monadic) result.
 data Sink i m r = Sink { sinkStatus :: m (SinkStatus i m r) }
@@ -206,9 +211,23 @@ infixl 3 =+=
 (=+|=) = concatSources
 infixl 3 =+|=
 
+-- | Source that executes a monadic action to get its inputs. Terminates when the sink terminates
+--   or the action returns Nothing.
+actionSource :: Monad m => m (Maybe i) -> BasicSource2 m i
+actionSource f = BasicSource2 (handleActionSource f)
 
+-- | Source that first opens a resource, then transfers itself to the sink and the closes the
+--   resource again (in a bracket).
+bracketActionSource :: IO a -> (a -> IO ()) -> (a -> IO (Maybe i)) -> BasicSource2 IO i
+bracketActionSource open close f = BasicSource2 handle
+    where handle sink = bracket open close step
+            where step a = handleActionSource (f a) sink
 
-
+handleActionSource f sink = do s <- sinkStatus sink
+                               i <- f
+                               step sink s i
+    where step _ (Cont f _) (Just i) = f i
+          step sink _ _ = return sink
 
 
 
