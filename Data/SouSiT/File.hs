@@ -18,8 +18,6 @@ module Data.SouSiT.File (
 ) where
 
 import System.IO
-import Control.Monad
-import Control.Applicative
 import qualified Data.ByteString as BS
 import Data.SouSiT
 import Data.SouSiT.Handle

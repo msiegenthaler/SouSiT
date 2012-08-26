@@ -33,7 +33,6 @@ module Data.SouSiT.Trans (
 
 import Prelude hiding (id, map, take, takeWhile, drop, dropWhile, sequence, filter)
 import qualified Prelude as P
-import Control.Monad hiding (sequence)
 import Data.SouSiT
 
 

@@ -49,7 +49,7 @@ import Data.Monoid
 import Control.Monad
 import Control.Applicative
 import qualified Control.Category as C
-import Control.Exception
+import Control.Exception (bracket)
 
 
 --- | Sink for data. Aggregates data to produce a single (monadic) result.
@@ -68,7 +68,7 @@ instance Monad m => Monad (Sink i m) where
     return a = doneSink $ return a
     (Sink st) >>= f = Sink (st >>= mp)
         where mp (Done r) = liftM f r >>= sinkStatus
-              mp (Cont nf cf) = return $ Cont (liftM (>>= f) . nf) noResult
+              mp (Cont nf _) = return $ Cont (liftM (>>= f) . nf) noResult
 
 instance Monad m => Applicative (Sink i m) where
     pure = return
@@ -94,6 +94,7 @@ input = Sink (return $ Cont f noResult)
             return $ Sink (return $ Done r)
 
 -- | Skips n input values.
+skip :: (Eq n, Num n, Monad m) => n -> Sink a m ()
 skip 0 = return ()
 skip i = input >> skip (i-1)
 
@@ -114,7 +115,7 @@ appendSink s1 s2 = do r1 <- s1
 feedList :: Monad m => [i] -> Sink i m r -> m (Sink i m r)
 feedList [] s = return s
 feedList (x:xs) s = sinkStatus s >>= step
-    where step (Done r) = return s
+    where step (Done _) = return s
           step (Cont f _) = f x >>= feedList xs
 
 contSink :: Monad m => (i -> m (Sink i m r)) -> m r -> Sink i m r
@@ -198,6 +199,7 @@ concatSources2 src1 src2 = BasicSource2 f
     where f sink = feedToSink src1 sink >>= feedToSink src2
 
 -- | Decorates a Source with a monadic function. Can be used to produce debug output and such.
+decorateSource :: (Monad m, Source src) => (a -> m ()) -> src m a -> BasicSource m a
 decorateSource df src = BasicSource step
     where step sink = transfer src (decorateSink df sink)
 
@@ -223,11 +225,12 @@ bracketActionSource open close f = BasicSource2 handle
     where handle sink = bracket open close step
             where step a = handleActionSource (f a) sink
 
+handleActionSource :: Monad m => m (Maybe i) -> Sink i m r -> m (Sink i m r)
 handleActionSource f sink = do s <- sinkStatus sink
                                i <- f
-                               step sink s i
-    where step _ (Cont f _) (Just i) = f i
-          step sink _ _ = return sink
+                               step s i
+    where step (Cont nf _) (Just i) = nf i
+          step _ _ = return sink
 
 
 
@@ -257,6 +260,7 @@ infixl 2 =$
 infixl 1 $=
 
 -- | merges two transforms into one
+(=$=) :: Transform a b -> Transform b c -> Transform a c
 (=$=) = mergeTransform
 
 -- | apply transform to source
@@ -270,13 +274,13 @@ transformSink IdentTransform s = s
 transformSink (MappingTransform f) s = transformSinkMapping f s
 transformSink (ContTransform tfn tfe) s = Sink $ liftM step $ sinkStatus s
     where step (Done r) = Done r
-          step (Cont nf cf) = Cont nf' cf'
+          step _ = Cont nf' cf'
             where nf' i = liftM (transformSink trans') (feedList es s)
                     where (es, trans') = tfn i
                   cf' = feedList tfe s >>= closeSink
 transformSink (EndTransform es) s = Sink $ liftM step $ sinkStatus s
     where step (Done r) = Done r
-          step (Cont nf cf) = Done $ feedList es s >>= closeSink
+          step _ = Done $ feedList es s >>= closeSink
 
 transformSinkMapping :: Monad m => (a -> b) -> Sink b m r -> Sink a m r
 transformSinkMapping f = Sink . liftM step . sinkStatus
@@ -299,12 +303,11 @@ mergeTransform (ContTransform f d) t2 = ContTransform next' done'
 mergeTransform t1 t2 = mergeTransform (contEndOnly t1) (contEndOnly t2)
 
 -- | Converts all transformers to either ContTransform or EndTransform
+contEndOnly :: Transform a b -> Transform a b
 contEndOnly t@(MappingTransform f) = ContTransform (\i -> ([f i], t)) []
 contEndOnly IdentTransform = ContTransform (\i -> ([i], IdentTransform)) []
 contEndOnly t@(ContTransform _ _) = t
 contEndOnly t@(EndTransform _) = t
-
-mapFst f (a,b) = (f a, b)
 
 endTransform (bs, t) = bs ++ closeTransform t
 
@@ -313,8 +316,9 @@ closeTransform (ContTransform _ bs) = bs
 closeTransform _ = []
 
 feedTransform :: [a] -> Transform a b -> ([b], Transform a b)
-feedTransform es t = step [] es t
+feedTransform toFeed trans = step [] toFeed trans
     where step outs []     t = (outs, t)
+          step outs es   t@IdentTransform = (outs ++ es, t)
           step outs es   t@(MappingTransform f) = (outs ++ map f es, t)
           step outs (e:es) (ContTransform f _)  = let (r, t') = f e in step (outs ++ r) es t'
-          step outs rest t@(EndTransform _) = (outs, t) --'rest' is lost
+          step outs _    t@(EndTransform _) = (outs, t) --lefover es are lost
