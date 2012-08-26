@@ -3,12 +3,11 @@
 module Data.SouSiT (
     -- * Sink
     Sink(..),
+    SinkStatus(..),
     closeSink,
-    feedSink,
-    feedSinkList,
-    decorateSink,
-    concatSink,
-    (=|=),
+    -- ** monadic
+    input,
+    skip,
     appendSink,
     (=||=),
     -- * Source
@@ -19,9 +18,11 @@ module Data.SouSiT (
     concatSources,
     (=+=),
     (=+|=),
-    decorateSource,
+    -- decorateSource,
     BasicSource(..),
-    BasicSource2(..),
+    BasicSource2(..)
+
+    {-
     -- * Transform
     Transform(..),
     transformSink,
@@ -30,6 +31,7 @@ module Data.SouSiT (
     (=$=),
     (=$),
     ($=)
+    -}
 ) where
 
 import Data.Monoid
@@ -37,65 +39,64 @@ import Control.Monad
 import Control.Applicative
 import qualified Control.Category as C
 
---- | Sink for data. Aggregates data to produce a single result (i.e. an IO).
-data Sink a m r = SinkCont (a -> m (Sink a m r)) (m r)
-                | SinkDone (m r)
+--- | Sink for data. Aggregates data to produce a single (monadic) result.
+data Sink i m r = Sink { sinkStatus :: m (SinkStatus i m r) }
 
-instance Functor m => Functor (Sink a m) where
-    fmap = mapSink
-
-
-mapSink :: (Functor m) => (r1 -> r2) -> Sink a m r1 -> Sink a m r2
-mapSink f (SinkCont next r) = SinkCont (mapSinkF . next) (fmap f r)
-    where mapSinkF = fmap (mapSink f)
-mapSink f (SinkDone r)      = SinkDone $ fmap f r
-
--- | Decorates a Sink with a monadic function. Can be used to produce debug output and such.
-decorateSink df (SinkCont next done) = SinkCont next' done
-    where next' i = liftM (decorateSink df) (df i >> next i)
-decorateSink df (SinkDone done) = SinkDone done
-
--- | Close the sink and return its result
-closeSink :: Sink a m r -> m r
-closeSink (SinkDone r) = r
-closeSink (SinkCont _ r) = r
-
--- | Feed an input to a sink. If the sink is already done then the input is ignored.
-feedSink :: Applicative m => Sink a m r -> a -> m (Sink a m r)
-feedSink (SinkCont f _) i = f i
-feedSink sink _           = pure sink
-
--- | Feed a list of inputs to a sink.
-feedSinkList :: Monad m => [a] -> Sink a m r -> m (Sink a m r)
-feedSinkList []     sink              = return sink
-feedSinkList _      done@(SinkDone _) = return done
-feedSinkList (x:xs) (SinkCont f r)    = f x >>= feedSinkList xs
+data SinkStatus i m r = Cont (i -> m (Sink i m r)) (m r)
+                      | Done (m r)
 
 
--- | Concatenates two sinks. See concatSink.
-(=|=) :: Applicative m => Sink a m r1 -> Sink a m r2 -> Sink a m (r1, r2)
-(=|=) = concatSink
-infixl 3 =|=
+instance Monad m => Functor (Sink i m) where
+    fmap f (Sink st) = Sink (liftM mp st)
+        where mp (Done r)  = Done (liftM f r)
+              mp (Cont nf cf) = Cont (liftM (fmap f) . nf) (liftM f cf)
 
--- | Concatenates two sinks.
--- After the first returns SinkDone, the data is inputed into the second.
-concatSink :: Applicative m => Sink a m r1 -> Sink a m r2 -> Sink a m (r1, r2)
-concatSink (SinkDone r1)    (SinkDone r2)    = SinkDone $ (,) <$> r1 <*> r2
-concatSink s1@(SinkDone r1) (SinkCont f2 r2) = SinkCont next done
-    where next = fmap (concatSink s1) . f2
-          done = (,) <$> r1 <*> r2
-concatSink (SinkCont f1 r1) s2               = SinkCont next done
-    where next = fmap (`concatSink` s2) . f1
-          done = (,) <$> r1 <*> closeSink s2
+instance Monad m => Monad (Sink i m) where
+    return a = let v = return a in Sink $ return $ Done v
+    (Sink st) >>= f = Sink (st >>= mp)
+        where mp (Done r) = liftM f r >>= sinkStatus
+              mp (Cont nf cf) = return $ Cont (liftM (>>= f) . nf) noResult
+
+instance Monad m => Applicative (Sink i m) where
+    pure = return
+    af <*> s = do f <- af
+                  v <- s
+                  return (f v)
+
+noResult :: Monad m => m a
+noResult = fail "no result: not enough input"
+
+
+-- | Closes the sink and returns its result.
+closeSink :: Monad m => Sink i m r -> m r
+closeSink (Sink st) = st >>= handle
+    where handle (Done r) = r
+          handle (Cont _ r) = r
+
+
+-- | Reads a value.
+input :: Monad m => Sink a m a
+input = Sink (return $ Cont f noResult)
+    where f i = let r = return i in 
+            return $ Sink (return $ Done r)
+
+-- | Skips n input values.
+skip 0 = return ()
+skip i = input >> skip (i-1)
+
+
 
 -- | Concatenates two sinks that produce a monoid.
-(=||=) :: (Applicative m, Monoid r) => Sink a m r -> Sink a m r -> Sink a m r
+(=||=) :: (Monad m, Monoid r) => Sink a m r -> Sink a m r -> Sink a m r
 (=||=) = appendSink
 infixl 3 =||=
 
 -- | Concatenates two sinks that produce a monoid.
-appendSink :: (Applicative m, Monoid r) => Sink a m r -> Sink a m r -> Sink a m r
-appendSink s1 s2 = fmap (uncurry mappend) $ concatSink s1 s2
+appendSink :: (Monad m, Monoid r) => Sink a m r -> Sink a m r -> Sink a m r
+appendSink s1 s2 = do r1 <- s1
+                      r2 <- s2
+                      return $ mappend r1 r2
+
 
 
 
@@ -138,8 +139,8 @@ concatSources2 src1 src2 = BasicSource2 f
     where f sink = feedToSink src1 sink >>= feedToSink src2
 
 -- | Decorates a Source with a monadic function. Can be used to produce debug output and such.
-decorateSource df src = BasicSource step
-    where step sink = transfer src (decorateSink df sink)
+--decorateSource df src = BasicSource step
+    --where step sink = transfer src (decorateSink df sink)
 
 -- | Concatenates two sources.
 (=+=) :: (Source2 src1, Source2 src2, Monad m) => src1 m a -> src2 m a -> BasicSource2 m a
@@ -155,6 +156,8 @@ infixl 3 =+|=
 
 
 
+
+{-
 
 -- | A transformation onto a sink
 data Transform a b where
@@ -234,5 +237,5 @@ feedTransform es t = step [] es t
           step outs (e:es) (ContTransform f _)  = let (r, t') = f e in step (outs ++ r) es t'
           step outs rest t@(EndTransform _) = (outs, t) --'rest' is lost
 
-
+-}
 
