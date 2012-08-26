@@ -12,7 +12,10 @@ module Data.SouSiT (
     appendSink,
     (=||=),
     feedList,
+    -- ** sink construction
     decorateSink,
+    actionSink,
+    openCloseActionSink,
     -- * Source
     Source,
     transfer,
@@ -112,6 +115,26 @@ decorateSink df = Sink . liftM step . sinkStatus
           step (Cont nf cf) = Cont nf' cf
             where nf' i = liftM (decorateSink df) (df i >> nf i)
 
+-- | Sink that executes a monadic action per input received. Does not terminate.
+actionSink :: Monad m => (i -> m ()) -> Sink i m ()
+actionSink process = Sink (return $ Cont f (return ()))
+    where f i = process i >> return (actionSink process)
+
+-- | First calls open, then processes every input with process and when the sink is closed
+--   close is called. Does not terminate.
+openCloseActionSink :: Monad m => m a -> (a -> m ()) -> (a -> i -> m ()) -> Sink i m ()
+openCloseActionSink open close process = Sink $ return $ Cont first (return ())
+    where first i = open >>= flip handle i
+          handle rs i = process rs i >> (return $ Sink $ return $ Cont (handle rs) (close rs))
+
+
+
+
+
+
+
+
+
 
 -- | Something that produces data to be processed by a sink
 class Source src where
@@ -161,6 +184,11 @@ infixl 3 =+=
 (=+|=) :: (Source2 src1, Source src2, Monad m) => src1 m a -> src2 m a -> BasicSource m a
 (=+|=) = concatSources
 infixl 3 =+|=
+
+
+
+
+
 
 
 
