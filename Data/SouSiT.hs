@@ -113,7 +113,7 @@ appendSink s1 s2 = do r1 <- s1
 -- | Feed a list of inputs to a sink.
 feedList :: Monad m => [i] -> Sink i m r -> m (Sink i m r)
 feedList [] s = return s
-feedList (x:xs) s = (sinkStatus s) >>= step
+feedList (x:xs) s = sinkStatus s >>= step
     where step (Done r) = return s
           step (Cont f _) = f x >>= feedList xs
 
@@ -142,8 +142,8 @@ actionSink process = contSink f (return ())
 --   close is called. Does not terminate.
 openCloseActionSink :: Monad m => m a -> (a -> m ()) -> (a -> i -> m ()) -> Sink i m ()
 openCloseActionSink open close process = contSink first (return ())
-    where first i = open >>= flip handle i
-          handle rs i = process rs i >> return (contSink (handle rs) (close rs))
+    where first i = open >>= flip step i
+          step rs i = process rs i >> return (contSink (step rs) (close rs))
 
 -- | Sink that executes f for every input.
 --   The sink continues as long as the action returns Nothing, when the action returns
