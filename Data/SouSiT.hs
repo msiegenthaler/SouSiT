@@ -13,6 +13,9 @@ module Data.SouSiT (
     (=||=),
     feedList,
     -- ** sink construction
+    contSink,
+    doneSink,
+    doneSink',
     decorateSink,
     actionSink,
     openCloseActionSink,
@@ -56,7 +59,7 @@ instance Monad m => Functor (Sink i m) where
               mp (Cont nf cf) = Cont (liftM (fmap f) . nf) (liftM f cf)
 
 instance Monad m => Monad (Sink i m) where
-    return a = let v = return a in Sink $ return $ Done v
+    return a = doneSink $ return a
     (Sink st) >>= f = Sink (st >>= mp)
         where mp (Done r) = liftM f r >>= sinkStatus
               mp (Cont nf cf) = return $ Cont (liftM (>>= f) . nf) noResult
@@ -108,6 +111,15 @@ feedList (x:xs) s = (sinkStatus s) >>= step
     where step (Done r) = return s
           step (Cont f _) = f x >>= feedList xs
 
+contSink :: Monad m => (i -> m (Sink i m r)) -> m r -> Sink i m r
+contSink next close = Sink (return $ Cont next close)
+
+doneSink :: Monad m => m r -> Sink i m r
+doneSink result = Sink (return $ Done result)
+
+doneSink' :: Monad m => r -> Sink i m r
+doneSink' = doneSink . return
+
 -- | Decorates a Sink with a monadic function. Can be used to produce debug output and such.
 decorateSink :: Monad m => (i -> m ()) -> Sink i m r -> Sink i m r
 decorateSink df = Sink . liftM step . sinkStatus
@@ -117,13 +129,13 @@ decorateSink df = Sink . liftM step . sinkStatus
 
 -- | Sink that executes a monadic action per input received. Does not terminate.
 actionSink :: Monad m => (i -> m ()) -> Sink i m ()
-actionSink process = Sink (return $ Cont f (return ()))
+actionSink process = contSink f (return ())
     where f i = process i >> return (actionSink process)
 
 -- | First calls open, then processes every input with process and when the sink is closed
 --   close is called. Does not terminate.
 openCloseActionSink :: Monad m => m a -> (a -> m ()) -> (a -> i -> m ()) -> Sink i m ()
-openCloseActionSink open close process = Sink $ return $ Cont first (return ())
+openCloseActionSink open close process = contSink first (return ())
     where first i = open >>= flip handle i
           handle rs i = process rs i >> (return $ Sink $ return $ Cont (handle rs) (close rs))
 
