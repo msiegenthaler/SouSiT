@@ -20,9 +20,7 @@ module Data.SouSiT (
     (=+|=),
     -- decorateSource,
     BasicSource(..),
-    BasicSource2(..)
-
-    {-
+    BasicSource2(..),
     -- * Transform
     Transform(..),
     transformSink,
@@ -31,7 +29,6 @@ module Data.SouSiT (
     (=$=),
     (=$),
     ($=)
-    -}
 ) where
 
 import Data.Monoid
@@ -157,8 +154,6 @@ infixl 3 =+|=
 
 
 
-{-
-
 -- | A transformation onto a sink
 data Transform a b where
     IdentTransform      :: Transform a a
@@ -190,6 +185,8 @@ transformSource t src = BasicSource $ transfer src . transformSink t
 
 -- | Apply a transform to a sink
 transformSink :: Monad m => Transform a b -> Sink b m r -> Sink a m r
+transformSink = undefined
+{-
 transformSink IdentTransform sink = sink
 transformSink _ (SinkDone r) = SinkDone r
 transformSink (MappingTransform f) s = step s
@@ -201,6 +198,7 @@ transformSink (ContTransform tfn tfe) sink = SinkCont next end
             where (es, trans') = tfn i
           end = feedSinkList tfe sink >>= closeSink
 transformSink (EndTransform es) sink = SinkDone $ feedSinkList es sink >>= closeSink
+-}
 
 -- | merges two transforms into one
 mergeTransform :: Transform a b -> Transform b c -> Transform a c
@@ -236,6 +234,3 @@ feedTransform es t = step [] es t
           step outs es   t@(MappingTransform f) = (outs ++ map f es, t)
           step outs (e:es) (ContTransform f _)  = let (r, t') = f e in step (outs ++ r) es t'
           step outs rest t@(EndTransform _) = (outs, t) --'rest' is lost
-
--}
-
