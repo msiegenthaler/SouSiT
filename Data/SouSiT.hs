@@ -5,22 +5,26 @@ module Data.SouSiT (
     Sink(..),
     SinkStatus(..),
     closeSink,
-    -- ** monadic
+    -- ** monadic functions
     input,
     skip,
+    -- ** utility functions
     appendSink,
     (=||=),
+    feedList,
+    decorateSink,
     -- * Source
     Source,
     transfer,
+    BasicSource(..),
+    BasicSource2(..),
     feedToSink,
     ($$),
+    -- ** utility functions
     concatSources,
     (=+=),
     (=+|=),
-    -- decorateSource,
-    BasicSource(..),
-    BasicSource2(..),
+    decorateSource,
     -- * Transform
     Transform(..),
     transformSink,
@@ -94,10 +98,19 @@ appendSink s1 s2 = do r1 <- s1
                       r2 <- s2
                       return $ mappend r1 r2
 
+-- | Feed a list of inputs to a sink.
+feedList :: Monad m => [i] -> Sink i m r -> m (Sink i m r)
+feedList [] s = return s
+feedList (x:xs) s = (sinkStatus s) >>= step
+    where step (Done r) = return s
+          step (Cont f _) = f x >>= feedList xs
 
-
-
-
+-- | Decorates a Sink with a monadic function. Can be used to produce debug output and such.
+decorateSink :: Monad m => (i -> m ()) -> Sink i m r -> Sink i m r
+decorateSink df = Sink . liftM step . sinkStatus
+    where step (Done r) = Done r
+          step (Cont nf cf) = Cont nf' cf
+            where nf' i = liftM (decorateSink df) (df i >> nf i)
 
 
 -- | Something that produces data to be processed by a sink
@@ -136,8 +149,8 @@ concatSources2 src1 src2 = BasicSource2 f
     where f sink = feedToSink src1 sink >>= feedToSink src2
 
 -- | Decorates a Source with a monadic function. Can be used to produce debug output and such.
---decorateSource df src = BasicSource step
-    --where step sink = transfer src (decorateSink df sink)
+decorateSource df src = BasicSource step
+    where step sink = transfer src (decorateSink df sink)
 
 -- | Concatenates two sources.
 (=+=) :: (Source2 src1, Source2 src2, Monad m) => src1 m a -> src2 m a -> BasicSource2 m a
@@ -185,20 +198,23 @@ transformSource t src = BasicSource $ transfer src . transformSink t
 
 -- | Apply a transform to a sink
 transformSink :: Monad m => Transform a b -> Sink b m r -> Sink a m r
-transformSink = undefined
-{-
-transformSink IdentTransform sink = sink
-transformSink _ (SinkDone r) = SinkDone r
-transformSink (MappingTransform f) s = step s
-    where step (SinkDone r) = SinkDone r
-          step (SinkCont next r) = SinkCont next' r
-            where next' = liftM step . next . f
-transformSink (ContTransform tfn tfe) sink = SinkCont next end
-    where next i = liftM (transformSink trans') (feedSinkList es sink)
-            where (es, trans') = tfn i
-          end = feedSinkList tfe sink >>= closeSink
-transformSink (EndTransform es) sink = SinkDone $ feedSinkList es sink >>= closeSink
--}
+transformSink IdentTransform s = s
+transformSink (MappingTransform f) s = transformSinkMapping f s
+transformSink (ContTransform tfn tfe) s = Sink $ liftM step $ sinkStatus s
+    where step (Done r) = Done r
+          step (Cont nf cf) = Cont nf' cf'
+            where nf' i = liftM (transformSink trans') (feedList es s)
+                    where (es, trans') = tfn i
+                  cf' = feedList tfe s >>= closeSink
+transformSink (EndTransform es) s = Sink $ liftM step $ sinkStatus s
+    where step (Done r) = Done r
+          step (Cont nf cf) = Done $ feedList es s >>= closeSink
+
+transformSinkMapping :: Monad m => (a -> b) -> Sink b m r -> Sink a m r
+transformSinkMapping f = Sink . liftM step . sinkStatus
+    where step (Done r) = Done r
+          step (Cont nf cf) = Cont nf' cf
+            where nf' i = liftM (transformSinkMapping f) $ nf (f i)
 
 -- | merges two transforms into one
 mergeTransform :: Transform a b -> Transform b c -> Transform a c
