@@ -1,3 +1,4 @@
+{-# LANGUAGE Rank2Types #-}
 module Data.SouSiT.Sink (
     Sink(..),
     SinkStatus(..),
@@ -6,6 +7,7 @@ module Data.SouSiT.Sink (
     input,
     skip,
     -- * utility functions
+    liftSink,
     appendSink,
     (=||=),
     feedList,
@@ -22,6 +24,13 @@ module Data.SouSiT.Sink (
 import Data.Monoid
 import Control.Applicative
 import Control.Monad
+
+
+liftSink :: (Monad m, Monad m') => (forall x . m x -> m' x) -> Sink i m r -> Sink i m' r
+liftSink t (Sink status) = Sink $ t (liftM trans status)
+    where trans (Cont nf cf) = Cont nf' (t cf)
+            where nf' i = liftM (liftSink t) $ t (nf i)
+          trans (Done r)     = Done (t r)
 
 --- | Sink for data. Aggregates data to produce a single (monadic) result.
 data Sink i m r = Sink { sinkStatus :: m (SinkStatus i m r) }

@@ -1,7 +1,9 @@
 module Data.SouSiT (
     -- * Sink
     Sink,
+    liftSink,
     Fetch,
+    liftFetch,
     input,
     skip,
     -- * Source
@@ -26,3 +28,6 @@ import Data.SouSiT.Transform
 import Control.Monad.Identity
 
 type Fetch i a = Sink i Identity a
+
+liftFetch :: Monad m => Fetch i a -> Sink i m a
+liftFetch fetch = liftSink (return . runIdentity) fetch
