@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs #-}
 
-module Data.SouSiT.TransBase (
+module Data.SouSiT.Transform (
     Transform(..),
     transformSink,
     transformSource,

@@ -8,6 +8,7 @@ import Control.Monad
 import Control.Monad.Identity
 import Data.List (elemIndex)
 import Data.SouSiT
+import Data.SouSiT.Transform
 import qualified Data.SouSiT.List as L
 import qualified Data.SouSiT.Trans as T
 

@@ -22,7 +22,7 @@ module Data.SouSiT (
 
 import Data.SouSiT.Sink
 import Data.SouSiT.Source
-import Data.SouSiT.TransBase
+import Data.SouSiT.Transform
 import Control.Monad.Identity
 
 type Fetch i a = Sink i Identity a
