@@ -5,7 +5,8 @@ module Data.SouSiT.List (
 	listSink
 ) where
 
-import Data.SouSiT
+import Data.SouSiT.Source
+import Data.SouSiT.Sink
 
 -- | A source containing the elements of the list
 listSource :: Monad m => [a] -> BasicSource2 m a

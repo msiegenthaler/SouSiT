@@ -9,7 +9,8 @@ module Data.SouSiT.STM (
     tchanSource
 ) where
 
-import Data.SouSiT
+import Data.SouSiT.Source
+import Data.SouSiT.Sink
 import Control.Monad
 import Control.Concurrent.STM
 

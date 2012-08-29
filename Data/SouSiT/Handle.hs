@@ -11,7 +11,8 @@ module Data.SouSiT.Handle (
     hSink'
 ) where
 
-import Data.SouSiT
+import Data.SouSiT.Source
+import Data.SouSiT.Sink
 import System.IO
 import Control.Monad
 
