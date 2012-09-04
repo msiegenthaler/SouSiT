@@ -18,8 +18,8 @@ module Data.SouSiT.Trans (
     filterMap,
     flatMap,
     -- * Accumulation
-    {-
     accumulate,
+    {-
     buffer,
     -}
     -- * Dispersing
@@ -109,6 +109,14 @@ takeUntilEq e = takeUntil (e ==)
 -- is encountered no more inputs will be passed on.
 takeWhile :: (a -> Bool) -> Transform a a
 takeWhile f = takeUntil (not . f)
+
+-- | Accumulates all elements with the accumulator function.
+accumulate :: b -> (b -> a -> b) -> Transform a b
+accumulate acc f = mapSinkStatus step
+    where step (Done r)     = Done r
+          step (Cont nf cf) = Cont nf' cf'
+            where nf' i = return $ accumulate (f acc i) f $ contSink nf cf
+                  cf' = nf acc >>= closeSink
 
 {-
 
