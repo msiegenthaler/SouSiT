@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE Rank2Types, ImpredicativeTypes #-}
 
 module Data.SouSiT.Trans (
     -- * Element Transformation
@@ -23,10 +23,13 @@ module Data.SouSiT.Trans (
     buffer,
     -- * Dispersing
     disperse,
+    -}
     -- * Chaining/Looping
     loop,
     loopN,
     sequence,
+    andThen,
+    {-
     -- * Handling of Either
     eitherRight,
     eitherLeft
@@ -44,7 +47,7 @@ import Prelude hiding (map, take, takeWhile, drop, dropWhile, sequence, filter)
 import qualified Prelude as P
 import Data.SouSiT.Sink
 import Data.SouSiT.Transform
-import Control.Monad
+import Control.Monad (liftM)
 
 
 mapSinkStatus :: Monad m => (SinkStatus a m r -> SinkStatus b m r) -> Sink a m r -> Sink b m r
@@ -166,35 +169,58 @@ filterMap f = mapSinkTransFun fun
 
 
 
+-- | Executes with t1 and when t1 ends, then the next input is fed to through t2.
+andThen :: Transform a b -> Transform a b -> Transform a b
+andThen t1 t2 = (sinkUnwrap t2) . t1 . sinkWrap
+
+data WrapRes i m r = SinkIsDone (m r)
+                   | SinkIsCont (i -> m (Sink i m r)) (m r)
+
+sinkUnwrap :: Monad m => Transform a b -> Sink a m (WrapRes b m r) -> Sink a m r
+sinkUnwrap t = Sink . (>>= handle) . sinkStatus
+    where handle (Cont nf cf) = return $ Cont (liftM (sinkUnwrap t) . nf) (cf >>= unwrapRes)
+          handle (Done r) = liftM (t . recSink) r >>= sinkStatus
+
+sinkWrap :: Monad m => Sink i m r -> Sink i m (WrapRes i m r)
+sinkWrap = Sink . liftM f . sinkStatus
+    where f (Done r)     = Done $ return $ SinkIsDone r
+          f (Cont nf cf) = Cont (liftM sinkWrap . nf) (return $ SinkIsCont nf cf)
+
+recSink :: Monad m => WrapRes i m r -> Sink i m r
+recSink (SinkIsDone r)     = doneSink r
+recSink (SinkIsCont nf cf) = contSink nf cf
+
+unwrapRes :: Monad m => WrapRes i m r -> m r
+unwrapRes (SinkIsDone r)   = r
+unwrapRes (SinkIsCont _ r) = r
+
+
+-- | Executes the given transforms in a sequence, as soon as one ends the next input is
+--   passed to the next transform.
+sequence :: [Transform a b] -> Transform a b
+sequence [] = error "No Transform for T.sequence"
+sequence (t:[]) = t
+sequence (t:ts) = andThen t (sequence ts)
+
+-- | Loops the given transform forever.
+loop :: Transform a b -> Transform a b
+loop t = andThen t (loop t)
+
+-- | Loops the given transform n times
+loopN :: Int -> Transform a b -> Transform a b
+loopN n t | n > 1  = andThen t $ loopN (n - 1) t
+          | n == 1 = t
+          | otherwise = error $ "Invalid n=" ++ show n ++ " in T.loopN"
+
+    --sequence . P.take n . repeat
+-- {-# ANN loopN "HLint: ignore Use replicate" #-}
+
+
 {-
 -- | Applies a function to each element and passes on every element of the result list seperatly.
 flatMap :: (a -> [b]) -> Transform a b
 flatMap f = ContTransform step []
     where step i = (f i, ContTransform step [])
-
--- | Loops the given transform forever.
-loop :: Transform a b -> Transform a b
-loop = sequence . repeat
-
--- | Loops the given transform n times
-loopN :: Int -> Transform a b -> Transform a b
-loopN n =  sequence . P.take n . repeat
-{ -# ANN loopN "HLint: ignore Use replicate" #- }
-
--- | Executes the given transforms in a sequence, as soon as one is EndTransform the next input
--- is passed to the next transform.
-sequence :: [Transform a b] -> Transform a b
-sequence = sequence2 []
-
-sequence2 :: [b] -> [Transform a b] -> Transform a b
-sequence2 r  [] = EndTransform r
-sequence2 [] (IdentTransform:_) = IdentTransform
-sequence2 r  (IdentTransform:_) = ContTransform (\i -> (r ++ [i], IdentTransform)) r
-sequence2 [] (MappingTransform f:_) = MappingTransform f
-sequence2 r  (MappingTransform f:_) = ContTransform (\i -> (r ++ [f i], MappingTransform f)) r
-sequence2 r  (EndTransform r2:ts) = sequence2 (r ++ r2) ts
-sequence2 r  (ContTransform next done:ts) = ContTransform step (r ++ done)
-    where step i = let (es,t') = next i in (r ++ es, sequence2 [] (t':ts))
 
 -- | Only lets the 'rights' of Either pass.
 eitherRight :: Transform (Either a b) b
