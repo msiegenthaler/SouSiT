@@ -16,14 +16,14 @@ module Data.SouSiT.Trans (
     -- * Filter / FlatMap
     filter,
     filterMap,
-    {-
     flatMap,
     -- * Accumulation
+    {-
     accumulate,
     buffer,
+    -}
     -- * Dispersing
     disperse,
-    -}
     -- * Chaining/Looping
     loop,
     loopN,
@@ -127,11 +127,15 @@ buffer initN initAcc f | initN < 1 = error $ "Cannot buffer " ++ show initN ++ "
             where next i = ([f acc i], step initN initAcc)
           step n acc = ContTransform next [acc] 
             where next i = ([], step (n-1) (f acc i))
+-}
 
 -- | Yield all elements of the array as seperate outputs.
 disperse :: Transform [a] a
-disperse = ContTransform (\i -> (i, disperse)) []
--}
+disperse = mapSinkStatus f
+    where f (Done r)     = Done r
+          f (Cont nf cf) = Cont nf' cf
+            where nf' is = liftM disperse $ feedList is $ contSink nf cf
+
 
 -- | Drops the first n inputs then passes through all inputs unchanged
 drop :: (Num n, Ord n) => n -> Transform a a
@@ -212,9 +216,10 @@ loopN n t | n > 1  = andThen t $ loopN (n - 1) t
           | n == 1 = t
           | otherwise = error $ "Invalid n=" ++ show n ++ " in T.loopN"
 
-    --sequence . P.take n . repeat
--- {-# ANN loopN "HLint: ignore Use replicate" #-}
 
+-- | Applies a function to each element and passes on every element of the result list seperatly.
+flatMap :: (a -> [b]) -> Transform a b
+flatMap f = map f =$= disperse
 
 {-
 -- | Applies a function to each element and passes on every element of the result list seperatly.
