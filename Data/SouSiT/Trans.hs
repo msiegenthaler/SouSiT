@@ -179,7 +179,7 @@ data WrapRes i m r = SinkIsDone (m r)
 sinkUnwrap :: Monad m => Transform a b -> Sink a m (WrapRes b m r) -> Sink a m r
 sinkUnwrap t = Sink . (>>= handle) . sinkStatus
     where handle (Cont nf cf) = return $ Cont (liftM (sinkUnwrap t) . nf) (cf >>= unwrapRes)
-          handle (Done r) = liftM (t . recSink) r >>= sinkStatus
+          handle (Done r)     = liftM (t . recSink) r >>= sinkStatus
 
 sinkWrap :: Monad m => Sink i m r -> Sink i m (WrapRes i m r)
 sinkWrap = Sink . liftM f . sinkStatus
