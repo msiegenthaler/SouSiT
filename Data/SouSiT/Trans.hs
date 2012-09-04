@@ -19,9 +19,7 @@ module Data.SouSiT.Trans (
     flatMap,
     -- * Accumulation
     accumulate,
-    {-
     buffer,
-    -}
     -- * Dispersing
     disperse,
     -- * Chaining/Looping
@@ -118,22 +116,20 @@ accumulate acc f = mapSinkStatus step
             where nf' i = return $ accumulate (f acc i) f $ contSink nf cf
                   cf' = nf acc >>= closeSink
 
-{-
-
--- | Accumulates all elements with the accumulator function.
-accumulate :: b -> (b -> a -> b) -> Transform a b
-accumulate acc f = ContTransform step [acc]
-    where step i = ([], accumulate (f acc i) f)
-
 -- | Accumulates up to n elements with the accumulator function and then releases it.
 buffer :: Int -> b -> (b -> a -> b) -> Transform a b
 buffer initN initAcc f | initN < 1 = error $ "Cannot buffer " ++ show initN ++ " elements"
                        | otherwise = step initN initAcc
-    where step 1 acc = ContTransform next [acc]
-            where next i = ([f acc i], step initN initAcc)
-          step n acc = ContTransform next [acc] 
-            where next i = ([], step (n-1) (f acc i))
--}
+    where step 1 acc = mapSinkStatus handle
+                where handle (Done r)     = Done r
+                      handle (Cont nf _) = Cont nf' cf'
+                        where nf' i = liftM (step initN initAcc) $ nf (f acc i)
+                              cf' = nf acc >>= closeSink
+          step n acc = mapSinkStatus handle
+                where handle (Done r)     = Done r
+                      handle (Cont nf cf) = Cont nf' cf'
+                        where nf' i = return $ step (n-1) (f acc i) $ contSink nf cf
+                              cf' = nf acc >>= closeSink
 
 -- | Yield all elements of the array as seperate outputs.
 disperse :: Transform [a] a
