@@ -2,8 +2,8 @@
 
 module Data.SouSiT.Trans (
     -- * Element Transformation
-    id,
     map,
+    mapWithState,
     zipWithIndex,
     --- * Take / Drop
     take,
@@ -16,6 +16,7 @@ module Data.SouSiT.Trans (
     -- * Filter / FlatMap
     filter,
     filterMap,
+    {-
     flatMap,
     -- * Accumulation
     accumulate,
@@ -29,38 +30,75 @@ module Data.SouSiT.Trans (
     -- * Handling of Either
     eitherRight,
     eitherLeft
+    -}
+    -- * Utilities
+    TransFun,
+    applyTransFun,
+    applyTransFun',
+    mapSinkTransFun,
+    mapSinkTransFun',
+    toDoneTrans
 ) where
 
-import Prelude hiding (id, map, take, takeWhile, drop, dropWhile, sequence, filter)
+import Prelude hiding (map, take, takeWhile, drop, dropWhile, sequence, filter)
 import qualified Prelude as P
+import Data.SouSiT.Sink
 import Data.SouSiT.Transform
+import Control.Monad
 
 
--- | Does not perform any transformation.
-id :: Transform a a
-id = IdentTransform
+mapSinkStatus :: Monad m => (SinkStatus a m r -> SinkStatus b m r) -> Sink a m r -> Sink b m r
+mapSinkStatus f = Sink . liftM f . sinkStatus
+
+mapSinkTransFun f = mapSinkStatus (applyTransFun f)
+mapSinkTransFun' ms mi = mapSinkStatus (applyTransFun' ms mi)
+
+type TransFun a b m r = (a -> m (Sink a m r)) -> m r -> b -> m (Sink b m r)
+
+applyTransFun :: Monad m => TransFun a b m r -> SinkStatus a m r -> SinkStatus b m r
+applyTransFun _ (Done r) = Done r
+applyTransFun f (Cont nf cf) = Cont (f nf cf) cf
+
+applyTransFun' :: Monad m => (Sink a m r -> Sink b m r) -> (b -> a) -> SinkStatus a m r -> SinkStatus b m r
+applyTransFun' ms mi = applyTransFun f
+    where f nf _ = liftM ms . nf . mi
+
+toDoneTrans :: Monad m => Sink a m r -> Sink a m r
+toDoneTrans = mapSinkStatus fun
+    where fun (Done r)   = Done r
+          fun (Cont _ r) = Done r
+
+
 
 -- | Transforms each input individually by applying the function.
 map :: (a -> b) -> Transform a b
-map = MappingTransform
+map f = mapSinkTransFun' (map f) f
+
+-- | Transforms each input and carry a state between the inputs.
+mapWithState :: (s -> a -> (b,s)) -> s -> Transform a b
+mapWithState f s = mapSinkTransFun fun
+    where fun nf _ i = let (i', s') = f s i in liftM (mapWithState f s') $ nf i'
 
 -- | Transforms each input to a tuple (input, index of input).
 -- I.e. for "Mario": (M, 0), (a, 1), (r, 2), (i, 3), (o, 4)
 zipWithIndex :: Transform a (a, Int)
-zipWithIndex = ContTransform (step 0) []
-    where step nr i =([(i, nr)], ContTransform (step (succ nr)) [])
+zipWithIndex = mapWithState fun 0
+    where fun s i = ((i,s), s+1)
+
 
 -- | Takes only the first n inputs, then returns done.
 take :: (Num n, Ord n) => n -> Transform a a
-take n | n > 0     = ContTransform (\i -> ([i], take $ n - 1)) []
-       | otherwise = EndTransform []
+take n | n > 0     = mapSinkTransFun' prev id
+       | otherwise = toDoneTrans
+    where prev = take (n - 1)
 
 -- | Takes inputs until the input fullfils the predicate. The matching input is not passed on.
 takeUntil :: (a -> Bool) -> Transform a a
-takeUntil p = ContTransform (step []) []
-    where step sf e | p e       = (sf, EndTransform [])
-                    | otherwise = ([], ContTransform (step sf') sf')
-                where sf' = sf ++ [e]
+takeUntil p = mapSinkStatus fun
+    where fun (Done r) = Done r
+          fun (Cont nf cf) = Cont nf' cf
+            where nf' i | p i       = return $ doneSink cf
+                        | otherwise = liftM (takeUntil p) (nf i)
 
 -- | Takes inputs until the input matches the argument. The matching input is not passed on.
 takeUntilEq :: Eq a => a -> Transform a a
@@ -70,6 +108,8 @@ takeUntilEq e = takeUntil (e ==)
 -- is encountered no more inputs will be passed on.
 takeWhile :: (a -> Bool) -> Transform a a
 takeWhile f = takeUntil (not . f)
+
+{-
 
 -- | Accumulates all elements with the accumulator function.
 accumulate :: b -> (b -> a -> b) -> Transform a b
@@ -88,18 +128,22 @@ buffer initN initAcc f | initN < 1 = error $ "Cannot buffer " ++ show initN ++ "
 -- | Yield all elements of the array as seperate outputs.
 disperse :: Transform [a] a
 disperse = ContTransform (\i -> (i, disperse)) []
+-}
 
 -- | Drops the first n inputs then passes through all inputs unchanged
 drop :: (Num n, Ord n) => n -> Transform a a
-drop n | n > 0     = ContTransform (\_ -> ([], drop (n - 1))) []
-       | otherwise = IdentTransform
+drop n0 = mapSinkStatus fun
+    where fun (Done r) = Done r
+          fun (Cont nf cf) = Cont (step n0) cf
+            where step n i | n > 0     = return $ contSink (step $ n-1) cf
+                           | otherwise = nf i
 
 -- | Drops inputs until the predicate is matched. The matching input and all subsequent inputs
 -- are passed on unchanged.
 dropUntil :: (a -> Bool) -> Transform a a
-dropUntil p = ContTransform step []
-    where step i | p i       = ([i], IdentTransform)
-                 | otherwise = ([],  ContTransform step [])
+dropUntil p = mapSinkTransFun fun
+    where fun nf cf i | p i       = nf i
+                      | otherwise = return $ dropUntil p $ contSink nf cf
 
 -- | Drops inputs as long as they match the predicate. The first non-matching input and all
 -- following inputs are passed on unchanged.
@@ -109,17 +153,20 @@ dropWhile f = dropUntil (not . f)
 
 -- | Only retains elements that match the filter function
 filter :: (a -> Bool) -> Transform a a
-filter f = ContTransform step []
-    where step i | f i       = ([i], filter f)
-                 | otherwise = ([],  filter f)
+filter p = mapSinkTransFun fun
+    where fun nf cf i | p i       = liftM (filter p) $ nf i
+                      | otherwise = return $ filter p $ contSink nf cf
 
 -- | Map that allows to filter out elements.
 filterMap :: (a -> Maybe b) -> Transform a b
-filterMap f = ContTransform step []
-    where step i = case f i of
-                (Just v) -> ([v], ContTransform step [])
-                Nothing  -> ([],  ContTransform step [])
+filterMap f = mapSinkTransFun fun
+    where fun nf cf i = case f i of
+                            (Just i') -> liftM (filterMap f) $ nf i'
+                            Nothing   -> return $ filterMap f $ contSink nf cf
 
+
+
+{-
 -- | Applies a function to each element and passes on every element of the result list seperatly.
 flatMap :: (a -> [b]) -> Transform a b
 flatMap f = ContTransform step []
@@ -132,7 +179,7 @@ loop = sequence . repeat
 -- | Loops the given transform n times
 loopN :: Int -> Transform a b -> Transform a b
 loopN n =  sequence . P.take n . repeat
-{-# ANN loopN "HLint: ignore Use replicate" #-}
+{ -# ANN loopN "HLint: ignore Use replicate" #- }
 
 -- | Executes the given transforms in a sequence, as soon as one is EndTransform the next input
 -- is passed to the next transform.
@@ -160,3 +207,4 @@ eitherLeft :: Transform (Either a b) a
 eitherLeft = ContTransform step []
     where step (Left a) = ([a], eitherLeft)
           step _        = ([],  eitherLeft)
+-}
