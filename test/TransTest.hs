@@ -121,12 +121,12 @@ mergeOfPureShouldBeSameAsSeperate = mergeCombos [
 
 mergeOfPureWithMappingShouldBeSameAsSeperate d =
         mergeTransTuples cmbs d && mergeTransTuples (fmap swap cmbs) d
-    where cs :: [Transform Int Int]
+    where cs :: (Num n, Eq n, Ord n) => [Transform n n]
           cs = [T.take 10, T.take 3,
                 T.takeUntil (>10), T.takeUntilEq 1,
                 T.accumulate 0 (+), T.accumulate 1 (*),
                 T.buffer 3 0 (+)]
-          ms :: [Transform Int Int]
+          ms :: Num n => [Transform n n]
           ms = [T.map (+1), T.map (*2)]
           cmbs = [ (t1, t2) | t1 <- cs, t2 <- ms ]
 
@@ -138,7 +138,7 @@ mergeCombos ts = mergeTransTuples cmbs
 
 mergeTransTuples ts d = and $ fmap (uncurry (mergeSameAsSeperate d)) ts
 
-mergeSameAsSeperate :: Eq b => [Int] -> Transform Int a -> Transform a b -> Bool
+mergeSameAsSeperate :: Eq c => [Int] -> Transform Int b -> Transform b c -> Bool
 mergeSameAsSeperate d t1 t2 = runIdentity (listSource d $$ t1 =$= t2 =$ listSink) == l2
     where l1 = runIdentity (listSource d $$ t1 =$ listSink)
           l2 = runIdentity (listSource l1 $$ t2 =$ listSink)
