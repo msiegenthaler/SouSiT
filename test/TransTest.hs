@@ -1,3 +1,4 @@
+{-# LANGUAGE Rank2Types #-}
 module Main (main) where
 
 import Test.QuickCheck
@@ -55,9 +56,9 @@ takeUntilEqElNotInListIsInput d e = not (elem e d) ==> transList (T.takeUntilEq 
 takeUntilEqFirstIsEmpty d = not (null d) ==> transList (T.takeUntilEq (head d)) d == []
 
 -- id
-idIsTheSameAsMapPreludeId d = transList (T.map id) d == transList (T.id) d
+idIsTheSameAsMapPreludeId d = transList (T.map id) d == transList (id) d
 
-idDoesNotChangeInput d = transList (T.id) d == d
+idDoesNotChangeInput d = transList (id) d == d
 
 -- map
 mapIdDoesNotChangeInput d = transList (T.map id) d == d
@@ -120,17 +121,13 @@ mergeOfPureShouldBeSameAsSeperate = mergeCombos [
 
 mergeOfPureWithMappingShouldBeSameAsSeperate d =
         mergeTransTuples cmbs d && mergeTransTuples (fmap swap cmbs) d
-    where cs = [T.take 10, T.take 3,
+    where cs :: [Transform Int Int]
+          cs = [T.take 10, T.take 3,
                 T.takeUntil (>10), T.takeUntilEq 1,
                 T.accumulate 0 (+), T.accumulate 1 (*),
                 T.buffer 3 0 (+)]
+          ms :: [Transform Int Int]
           ms = [T.map (+1), T.map (*2)]
-          cmbs = [ (t1, t2) | t1 <- cs, t2 <- ms ]
-
-mergeOfPureWithZipWithIndexShouldBeSameAsSeperate d =
-        mergeTransTuples cmbs d && mergeTransTuples (fmap swap cmbs) d
-    where cs = [T.take 10, T.take 3]
-          ms = [T.zipWithIndex]
           cmbs = [ (t1, t2) | t1 <- cs, t2 <- ms ]
 
 swap (a, b) = (b, a)
@@ -371,16 +368,6 @@ tests =
         testProperty "of map and zipWithIndex should be same as seperate application" mergeOfMapWithZipWithIndexShouldBeSameAsSeperate,
         testProperty "of map with take should be same as seperate application" mergeOfMapWithTakeShouldBeSameAsSeparate,
         testProperty "of pure Ops should be same as seperate application" mergeOfPureShouldBeSameAsSeperate,
-        testProperty "of pure with map should be the same as seperate application" mergeOfPureWithMappingShouldBeSameAsSeperate,
-        testProperty "of pure with zipWithIndex should be the same as seperate application" mergeOfPureWithZipWithIndexShouldBeSameAsSeperate
+        testProperty "of pure with map should be the same as seperate application" mergeOfPureWithMappingShouldBeSameAsSeperate
       ]
     ]
-
-
-
-
-
-
-
-
-
