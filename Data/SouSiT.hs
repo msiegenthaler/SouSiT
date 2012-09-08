@@ -17,6 +17,7 @@ module Data.SouSiT (
     (=+=),
     (=+|=),
     -- * Transform
+    Transform,
     (=$=),
     (=$),
     ($=)
