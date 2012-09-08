@@ -1,4 +1,4 @@
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE Rank2Types, ImpredicativeTypes #-}
 module Main (main) where
 
 import Test.QuickCheck
