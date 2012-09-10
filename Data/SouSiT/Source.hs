@@ -14,8 +14,8 @@ module Data.SouSiT.Source (
     (=+|=),
     -- * source construction
     decorateSource,
-    actionSource,
-    bracketActionSource,
+--    actionSource,
+--    bracketActionSource,
 ) where
 
 import Data.SouSiT.Sink
@@ -71,6 +71,7 @@ infixl 3 =+=
 (=+|=) = concatSources
 infixl 3 =+|=
 
+{-
 -- | Source that executes a monadic action to get its inputs. Terminates when the sink terminates
 --   or the action returns Nothing.
 actionSource :: Monad m => m (Maybe i) -> BasicSource2 m i
@@ -89,3 +90,4 @@ handleActionSource f sink = do s <- sinkStatus sink
                                step s i
     where step (Cont nf _) (Just i) = nf i
           step _ _ = return sink
+-}
