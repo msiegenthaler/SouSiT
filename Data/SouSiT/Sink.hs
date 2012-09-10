@@ -1,4 +1,4 @@
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE Rank2Types, BangPatterns #-}
 module Data.SouSiT.Sink (
     Sink(..),
     SinkStatus(..),
@@ -95,8 +95,8 @@ appendSink s1 s2 = do r1 <- s1
 
 -- | Feed a list of inputs to a sink.
 feedList :: Monad m => [i] -> Sink i m r -> Sink i m r
-feedList [] s = s
-feedList (x:xs) s = Sink (sinkStatus s >>= step)
+feedList [] !s = s
+feedList (x:xs) !s = Sink (sinkStatus s >>= step)
     where step (Done r)   = return $ Done r
           step (Cont f _) = sinkStatus $ feedList xs $ f x
 
