@@ -20,6 +20,7 @@ module Data.SouSiT.Trans (
     -- * Accumulation
     accumulate,
     buffer,
+    count,
     -- * Dispersing
     disperse,
     -- * Chaining/Looping
@@ -130,6 +131,11 @@ buffer initN initAcc f | initN < 1 = error $ "Cannot buffer " ++ show initN ++ "
                       handle (Cont nf cf) = Cont nf' cf'
                         where nf' i = return $ step (n-1) (f acc i) $ contSink nf cf
                               cf' = nf acc >>= closeSink
+
+-- | Counts the received elements.
+count :: Num n => Transform a n
+count = accumulate 0 step
+    where step i _ = i + 1
 
 -- | Yield all elements of the array as seperate outputs.
 disperse :: Transform [a] a
