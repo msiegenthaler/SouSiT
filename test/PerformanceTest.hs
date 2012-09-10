@@ -24,7 +24,7 @@ elemCountSource n = listSource [1..n]
 countList n = runIdentity (elemCountSource n $$ countSink) 
 
 countListIO :: Int -> IO Int
-countListIO n = elemCountSource n $$ T.count =$ firstSink
+countListIO n = elemCountSource n $$ countSink
 
 countListTrans n = runIdentity (elemCountSource n $$ T.count =$ firstSink)
 
