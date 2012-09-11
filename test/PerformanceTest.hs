@@ -62,7 +62,7 @@ filterFew :: Monad m => Int -> m Int
 filterFew n = elemCountSource n $$ T.filter ((== 0) . (`mod` 1000)) =$ countSink
 
 loopTakeDrop :: Monad m => Int -> m Int
-loopTakeDrop n = elemCountSource n $$ T.loop (T.drop 1 . T.take 1) =$ countSink
+loopTakeDrop n = elemCountSource n $$ T.loop (T.drop 1 =$= T.take 1) =$ countSink
 
 
 main = defaultMain [
