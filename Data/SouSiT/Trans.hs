@@ -16,9 +16,7 @@ module Data.SouSiT.Trans (
     -- * Filter / FlatMap
     filter,
     filterMap,
-{-
     flatMap,
--}
     -- * Accumulation
     accumulate,
     buffer,
@@ -224,11 +222,11 @@ loopN n t | n > 1  = andThen t $ loopN (n - 1) t
           | otherwise = error $ "Invalid n=" ++ show n ++ " in T.loopN"
 -}
 
-{-
 -- | Applies a function to each element and passes on every element of the result list seperatly.
 flatMap :: (a -> [b]) -> Transform a b
 flatMap f = map f =$= disperse
 
+{-
 -- | Only lets the 'rights' of Either pass.
 eitherRight :: Transform (Either a b) b
 eitherRight = mapSinkStatus f
