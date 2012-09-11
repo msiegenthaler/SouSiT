@@ -23,10 +23,10 @@ module Data.SouSiT.Trans (
     accumulate,
     buffer,
     count,
-{-
     -- * Dispersing
     disperse,
     -- * Chaining/Looping
+{-
     loop,
     loopN,
     sequence,
@@ -138,14 +138,12 @@ buffer initN initAcc f = if initN > 0 then mapSinkStatus fun
                         where nf' i = Sink $ liftM fun $ sinkStatus $ nf (f acc i)
                   step n acc = Cont (Sink . return . step (n-1) . f acc) (closeSink (nf acc))
 
-{-
 -- | Yield all elements of the array as seperate outputs.
 disperse :: Transform [a] a
-disperse = mapSinkStatus f
-    where f (Done r)     = Done r
-          f (Cont nf cf) = Cont nf' cf
-            where nf' is = liftM disperse $ feedList is $ contSink nf cf
--}
+disperse sink = Sink $ liftM fun (sinkStatus sink)
+    where fun (Done r) = Done r
+          fun (Cont _ cf) = Cont (disperse . flip feedList sink) cf
+
 
 {-
 -- | Drops the first n inputs then passes through all inputs unchanged
