@@ -6,8 +6,8 @@ module Data.SouSiT.Trans (
     mapWithState,
     zipWithIndex,
     --- * Take / Drop
-  {-
     take,
+  {-
     takeUntil,
     takeUntilEq,
     takeWhile,
@@ -90,14 +90,14 @@ zipWithIndex :: Transform a (a, Int)
 zipWithIndex = mapWithState fun 0
     where fun s i = ((i,s), s+1)
 
-{-
 -- | Takes only the first n inputs, then returns done.
 take :: (Num n, Ord n) => n -> Transform a a
-take n | n > 0     = mapSinkTransFun' prev id
+take n | n > 0     = mapSinkMapping prev id
        | otherwise = toDoneTrans
     where prev = take (n - 1)
 
 -- | Takes inputs until the input fullfils the predicate. The matching input is not passed on.
+{-
 takeUntil :: (a -> Bool) -> Transform a a
 takeUntil p = mapSinkStatus fun
     where fun (Done r) = Done r
@@ -113,7 +113,8 @@ takeUntilEq e = takeUntil (e ==)
 -- is encountered no more inputs will be passed on.
 takeWhile :: (a -> Bool) -> Transform a a
 takeWhile f = takeUntil (not . f)
-
+-}
+{-
 -- | Accumulates all elements with the accumulator function.
 accumulate :: b -> (b -> a -> b) -> Transform a b
 accumulate acc f = mapSinkStatus step
@@ -122,6 +123,13 @@ accumulate acc f = mapSinkStatus step
             where nf' i = return $ accumulate (f acc i) f $ contSink nf cf
                   cf' = nf acc >>= closeSink
 
+-- | Counts the received elements.
+count :: Num n => Transform a n
+count = accumulate 0 step
+    where step i _ = i + 1
+
+-}
+{-
 -- | Accumulates up to n elements with the accumulator function and then releases it.
 buffer :: Int -> b -> (b -> a -> b) -> Transform a b
 buffer initN initAcc f | initN < 1 = error $ "Cannot buffer " ++ show initN ++ " elements"
@@ -136,20 +144,17 @@ buffer initN initAcc f | initN < 1 = error $ "Cannot buffer " ++ show initN ++ "
                       handle (Cont nf cf) = Cont nf' cf'
                         where nf' i = return $ step (n-1) (f acc i) $ contSink nf cf
                               cf' = nf acc >>= closeSink
-
--- | Counts the received elements.
-count :: Num n => Transform a n
-count = accumulate 0 step
-    where step i _ = i + 1
-
+-}
+{-
 -- | Yield all elements of the array as seperate outputs.
 disperse :: Transform [a] a
 disperse = mapSinkStatus f
     where f (Done r)     = Done r
           f (Cont nf cf) = Cont nf' cf
             where nf' is = liftM disperse $ feedList is $ contSink nf cf
+-}
 
-
+{-
 -- | Drops the first n inputs then passes through all inputs unchanged
 drop :: (Num n, Ord n) => n -> Transform a a
 drop n0 = mapSinkStatus fun
@@ -157,7 +162,8 @@ drop n0 = mapSinkStatus fun
           fun (Cont nf cf) = Cont (step n0) cf
             where step n i | n > 0     = return $ contSink (step $ n-1) cf
                            | otherwise = nf i
-
+-}
+{-
 -- | Drops inputs until the predicate is matched. The matching input and all subsequent inputs
 -- are passed on unchanged.
 dropUntil :: (a -> Bool) -> Transform a a
@@ -183,9 +189,9 @@ filterMap f = mapSinkTransFun fun
     where fun nf cf i = case f i of
                             (Just i') -> liftM (filterMap f) $ nf i'
                             Nothing   -> return $ filterMap f $ contSink nf cf
+-}
 
-
-
+{-
 -- | Executes with t1 and when t1 ends, then the next input is fed to through t2.
 andThen :: Transform a b -> Transform a b -> Transform a b
 andThen t1 t2 = (sinkUnwrap t2) . t1 . sinkWrap
@@ -228,8 +234,9 @@ loopN :: Int -> Transform a b -> Transform a b
 loopN n t | n > 1  = andThen t $ loopN (n - 1) t
           | n == 1 = t
           | otherwise = error $ "Invalid n=" ++ show n ++ " in T.loopN"
+-}
 
-
+{-
 -- | Applies a function to each element and passes on every element of the result list seperatly.
 flatMap :: (a -> [b]) -> Transform a b
 flatMap f = map f =$= disperse
