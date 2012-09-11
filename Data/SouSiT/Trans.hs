@@ -7,10 +7,10 @@ module Data.SouSiT.Trans (
     zipWithIndex,
     --- * Take / Drop
     take,
-  {-
     takeUntil,
     takeUntilEq,
     takeWhile,
+  {-
     drop,
     dropUntil,
     dropWhile,
@@ -97,13 +97,12 @@ take n | n > 0     = mapSinkMapping prev id
     where prev = take (n - 1)
 
 -- | Takes inputs until the input fullfils the predicate. The matching input is not passed on.
-{-
 takeUntil :: (a -> Bool) -> Transform a a
 takeUntil p = mapSinkStatus fun
-    where fun (Done r) = Done r
+    where fun s@(Done _) = s
           fun (Cont nf cf) = Cont nf' cf
-            where nf' i | p i       = return $ doneSink cf
-                        | otherwise = liftM (takeUntil p) (nf i)
+            where nf' i = if p i then doneSink cf
+                          else takeUntil p (nf i)
 
 -- | Takes inputs until the input matches the argument. The matching input is not passed on.
 takeUntilEq :: Eq a => a -> Transform a a
@@ -113,7 +112,7 @@ takeUntilEq e = takeUntil (e ==)
 -- is encountered no more inputs will be passed on.
 takeWhile :: (a -> Bool) -> Transform a a
 takeWhile f = takeUntil (not . f)
--}
+
 {-
 -- | Accumulates all elements with the accumulator function.
 accumulate :: b -> (b -> a -> b) -> Transform a b
