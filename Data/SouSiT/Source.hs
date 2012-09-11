@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RankNTypes, BangPatterns #-}
 
 module Data.SouSiT.Source (
     Source,
@@ -13,7 +13,7 @@ module Data.SouSiT.Source (
     (=+=),
     (=+|=),
     -- * source construction
---    actionSource,
+    actionSource,
 --    bracketActionSource,
 ) where
 
@@ -65,11 +65,21 @@ infixl 3 =+=
 (=+|=) = concatSources
 infixl 3 =+|=
 
-{-
+
 -- | Source that executes a monadic action to get its inputs. Terminates when the sink terminates
 --   or the action returns Nothing.
 actionSource :: Monad m => m (Maybe i) -> BasicSource2 m i
 actionSource f = BasicSource2 (handleActionSource f)
+
+handleActionSource :: Monad m => m (Maybe i) -> Sink i m r -> m (Sink i m r)
+handleActionSource f !sink = sinkStatus sink >>= handleStatus
+    where handleStatus (Done _)    = return sink
+          handleStatus (Cont nf _) = f >>= handleInput nf
+          handleInput nf Nothing  = return sink
+          handleInput nf (Just i) = handleActionSource f (nf i)
+
+
+{-
 
 -- | Source that first opens a resource, then transfers itself to the sink and the closes the
 --   resource again (in a bracket).
