@@ -1,4 +1,4 @@
-{-# LANGUAGE Rank2Types, ImpredicativeTypes #-}
+{-# LANGUAGE Rank2Types, ImpredicativeTypes, BangPatterns #-}
 
 module Data.SouSiT.Trans (
     -- * Element Transformation
@@ -117,7 +117,7 @@ accumulate :: b -> (b -> a -> b) -> Transform a b
 accumulate initAcc f = mapSinkStatus fun
     where fun (Done r) = Done r
           fun (Cont nf _) = step initAcc
-            where step acc = Cont (Sink . return . step . f acc) (closeSink (nf acc))
+            where step !acc = Cont (Sink . return . step . f acc) (closeSink (nf acc))
 
 -- | Counts the received elements.
 count :: Num n => Transform a n
