@@ -14,9 +14,9 @@ module Data.SouSiT.Trans (
     dropUntil,
     dropWhile,
     -- * Filter / FlatMap
-{-
     filter,
     filterMap,
+{-
     flatMap,
 -}
     -- * Accumulation
@@ -165,21 +165,19 @@ dropUntil p = mapSinkTransFun fun
 dropWhile :: (a -> Bool) -> Transform a a
 dropWhile f = dropUntil (not . f)
 
-{-
 
 -- | Only retains elements that match the filter function
 filter :: (a -> Bool) -> Transform a a
 filter p = mapSinkTransFun fun
-    where fun nf cf i | p i       = liftM (filter p) $ nf i
-                      | otherwise = return $ filter p $ contSink nf cf
+    where fun nf cf i | p i       = filter p $ nf i
+                      | otherwise = filter p $ contSink nf cf
 
 -- | Map that allows to filter out elements.
 filterMap :: (a -> Maybe b) -> Transform a b
 filterMap f = mapSinkTransFun fun
     where fun nf cf i = case f i of
-                            (Just i') -> liftM (filterMap f) $ nf i'
-                            Nothing   -> return $ filterMap f $ contSink nf cf
--}
+                            (Just i') -> filterMap f $ nf i'
+                            Nothing   -> filterMap f $ contSink nf cf
 
 {-
 -- | Executes with t1 and when t1 ends, then the next input is fed to through t2.
