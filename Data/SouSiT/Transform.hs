@@ -37,9 +37,9 @@ infixl 1 $=
 
 
 -- | merges two transforms into one
-mergeTransform :: Monad m => (Sink b m r -> Sink a m r) -> (Sink c m r -> Sink b m r) -> (Sink c m r -> Sink a m r)
+mergeTransform :: Monad m => (Sink b m r -> Sink a m r) -> (Sink c m r -> Sink b m r) -> Sink c m r -> Sink a m r
 mergeTransform t1 t2 = t1 . t2
 
 -- | merges two transforms into one
-(=$=) :: Monad m => (Sink b m r -> Sink a m r) -> (Sink c m r -> Sink b m r) -> (Sink c m r -> Sink a m r)
+(=$=) :: Monad m => (Sink b m r -> Sink a m r) -> (Sink c m r -> Sink b m r) -> Sink c m r -> Sink a m r
 (=$=) = mergeTransform

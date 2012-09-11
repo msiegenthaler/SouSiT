@@ -101,7 +101,7 @@ doneSink' = Sink . return . Done . return
 -- | Sink that executes a monadic action per input received. Does not terminate.
 actionSink :: Monad m => (i -> m ()) -> Sink i m ()
 actionSink process = contSink f (return ())
-    where f i = Sink $ process i >> (sinkStatus $ actionSink process)
+    where f i = Sink $ process i >> sinkStatus (actionSink process)
 
 -- | First calls open, then processes every input with process and when the sink is closed
 --   close is called. Does not terminate.
