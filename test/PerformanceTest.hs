@@ -56,6 +56,15 @@ takeUntilListFew n = elemCountSource n $$ T.takeUntil (>100) =$ countSink
 takeUntilListMany :: Monad m => Int -> m Int
 takeUntilListMany n = elemCountSource n $$ T.takeUntil (>(n-100)) =$ countSink
 
+filterHalf :: Monad m => Int -> m Int
+filterHalf n = elemCountSource n $$ T.filter even =$ countSink
+
+filterFew :: Monad m => Int -> m Int
+filterFew n = elemCountSource n $$ T.filter ((== 0) . (`mod` 1000)) =$ countSink
+
+loopTakeDrop :: Monad m => Int -> m Int
+loopTakeDrop n = elemCountSource n $$ T.loop (T.drop 1 . T.take 1) =$ countSink
+
 
 main = defaultMain [
             bgroup "Monad comparision" [
@@ -72,6 +81,9 @@ main = defaultMain [
                 bench "take few elems" $ io $ takeListFew c,
                 bench "take many elems" $ io $ takeListMany c,
                 bench "takeUntil few elems" $ io $ takeUntilListFew c,
-                bench "takeUntil many elems" $ io $ takeUntilListMany c
+                bench "takeUntil many elems" $ io $ takeUntilListMany c,
+                bench "filter retaining half the elems" $ io $ filterHalf c,
+                bench "filter retaining few elems" $ io $ filterFew c,
+                bench "loop take1 drop1" $ io $ loopTakeDrop c
             ]
     ] where c = 100000
