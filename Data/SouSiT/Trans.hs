@@ -10,11 +10,11 @@ module Data.SouSiT.Trans (
     takeUntil,
     takeUntilEq,
     takeWhile,
-  {-
     drop,
     dropUntil,
     dropWhile,
     -- * Filter / FlatMap
+{-
     filter,
     filterMap,
     flatMap,
@@ -145,28 +145,27 @@ disperse sink = Sink $ liftM fun (sinkStatus sink)
           fun (Cont _ cf) = Cont (disperse . flip feedList sink) cf
 
 
-{-
 -- | Drops the first n inputs then passes through all inputs unchanged
 drop :: (Num n, Ord n) => n -> Transform a a
 drop n0 = mapSinkStatus fun
     where fun (Done r) = Done r
           fun (Cont nf cf) = Cont (step n0) cf
-            where step n i | n > 0     = return $ contSink (step $ n-1) cf
+            where step n i | n > 0     = contSink (step $ n-1) cf
                            | otherwise = nf i
--}
-{-
+
 -- | Drops inputs until the predicate is matched. The matching input and all subsequent inputs
 -- are passed on unchanged.
 dropUntil :: (a -> Bool) -> Transform a a
 dropUntil p = mapSinkTransFun fun
     where fun nf cf i | p i       = nf i
-                      | otherwise = return $ dropUntil p $ contSink nf cf
+                      | otherwise = dropUntil p $ contSink nf cf
 
 -- | Drops inputs as long as they match the predicate. The first non-matching input and all
 -- following inputs are passed on unchanged.
 dropWhile :: (a -> Bool) -> Transform a a
 dropWhile f = dropUntil (not . f)
 
+{-
 
 -- | Only retains elements that match the filter function
 filter :: (a -> Bool) -> Transform a a
