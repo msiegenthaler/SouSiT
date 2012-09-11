@@ -6,6 +6,7 @@ module Data.SouSiT.Trans (
     mapWithState,
     zipWithIndex,
     --- * Take / Drop
+  {-
     take,
     takeUntil,
     takeUntilEq,
@@ -31,12 +32,13 @@ module Data.SouSiT.Trans (
     -- * Handling of Either
     eitherRight,
     eitherLeft,
+  -}
     -- * Utilities
     TransFun,
     applyTransFun,
-    applyTransFun',
     mapSinkTransFun,
-    mapSinkTransFun',
+    applyMapping,
+    mapSinkMapping,
     toDoneTrans
 ) where
 
@@ -50,18 +52,22 @@ import Control.Monad (liftM)
 mapSinkStatus :: Monad m => (SinkStatus a m r -> SinkStatus b m r) -> Sink a m r -> Sink b m r
 mapSinkStatus f = Sink . liftM f . sinkStatus
 
-mapSinkTransFun f = mapSinkStatus (applyTransFun f)
-mapSinkTransFun' ms mi = mapSinkStatus (applyTransFun' ms mi)
 
-type TransFun a b m r = (a -> m (Sink a m r)) -> m r -> b -> m (Sink b m r)
+type TransFun a b m r = (a -> Sink a m r) -> m r -> b -> Sink b m r
 
 applyTransFun :: Monad m => TransFun a b m r -> SinkStatus a m r -> SinkStatus b m r
 applyTransFun _ (Done r) = Done r
 applyTransFun f (Cont nf cf) = Cont (f nf cf) cf
 
-applyTransFun' :: Monad m => (Sink a m r -> Sink b m r) -> (b -> a) -> SinkStatus a m r -> SinkStatus b m r
-applyTransFun' ms mi = applyTransFun f
-    where f nf _ = liftM ms . nf . mi
+mapSinkTransFun f = mapSinkStatus (applyTransFun f)
+
+
+applyMapping :: Monad m => (Sink a m r -> Sink b m r) -> (b -> a) -> SinkStatus a m r -> SinkStatus b m r
+applyMapping _ _ (Done r) = Done r
+applyMapping ms mi (Cont nf cf) = Cont (ms . nf . mi) cf
+
+mapSinkMapping ms mi = mapSinkStatus $ applyMapping ms mi
+
 
 toDoneTrans :: Monad m => Sink a m r -> Sink a m r
 toDoneTrans = mapSinkStatus fun
@@ -69,15 +75,14 @@ toDoneTrans = mapSinkStatus fun
           fun (Cont _ r) = Done r
 
 
-
 -- | Transforms each input individually by applying the function.
 map :: (a -> b) -> Transform a b
-map f = mapSinkTransFun' (map f) f
+map f = mapSinkMapping (map f) f
 
 -- | Transforms each input and carry a state between the inputs.
 mapWithState :: (s -> a -> (b,s)) -> s -> Transform a b
 mapWithState f s = mapSinkTransFun fun
-    where fun nf _ i = let (i', s') = f s i in liftM (mapWithState f s') $ nf i'
+    where fun nf _ i = let (i', s') = f s i in mapWithState f s' (nf i')
 
 -- | Transforms each input to a tuple (input, index of input).
 -- I.e. for "Mario": (M, 0), (a, 1), (r, 2), (i, 3), (o, 4)
@@ -85,7 +90,7 @@ zipWithIndex :: Transform a (a, Int)
 zipWithIndex = mapWithState fun 0
     where fun s i = ((i,s), s+1)
 
-
+{-
 -- | Takes only the first n inputs, then returns done.
 take :: (Num n, Ord n) => n -> Transform a a
 take n | n > 0     = mapSinkTransFun' prev id
@@ -244,3 +249,4 @@ eitherLeft = mapSinkStatus f
           f (Cont nf cf) = Cont (liftM eitherLeft . handle) cf
             where handle = either nf (return . ignore)
                   ignore _ = contSink nf cf
+-}
