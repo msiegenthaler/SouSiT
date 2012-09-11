@@ -15,12 +15,9 @@ module Data.SouSiT.Sink (
     contSink,
     doneSink,
     doneSink',
-    decorateSink,
-    {-
     actionSink,
     openCloseActionSink,
     maybeSink,
--}
 ) where
 
 import Data.Monoid
@@ -109,32 +106,24 @@ doneSink = Sink . return . Done
 doneSink' :: Monad m => r -> Sink i m r
 doneSink' = Sink . return . Done . return
 
--- | Decorates a Sink with a monadic function. Can be used to produce debug output and such.
-decorateSink :: Monad m => (i -> m ()) -> Sink i m r -> Sink i m r
-decorateSink df = Sink . liftM step . sinkStatus
-    where step (Done r) = Done r
-          step (Cont nf cf) = Cont nf' cf
-            where nf' i = Sink $ df i >> (sinkStatus $ decorateSink df (nf i))
 
-{-
 -- | Sink that executes a monadic action per input received. Does not terminate.
 actionSink :: Monad m => (i -> m ()) -> Sink i m ()
 actionSink process = contSink f (return ())
-    where f i = process i >> return (actionSink process)
+    where f i = Sink $ process i >> (sinkStatus $ actionSink process)
 
 -- | First calls open, then processes every input with process and when the sink is closed
 --   close is called. Does not terminate.
 openCloseActionSink :: Monad m => m a -> (a -> m ()) -> (a -> i -> m ()) -> Sink i m ()
 openCloseActionSink open close process = contSink first (return ())
-    where first i = open >>= flip step i
-          step rs i = process rs i >> return (contSink (step rs) (close rs))
+    where first i = Sink $ open >>= flip step i
+          step rs i = process rs i >> return (Cont (Sink . step rs) (close rs))
 
 -- | Sink that executes f for every input.
 --   The sink continues as long as the action returns Nothing, when the action returns
 --   Just, then that value is the result of the sink (and the sink is 'full').
 maybeSink :: Monad m => (i -> m (Maybe r)) -> Sink i m (Maybe r)
 maybeSink f = contSink step (return Nothing)
-  where step i = f i >>= cont
-        cont Nothing = return $ maybeSink f
-        cont result = return $ doneSink' result
--}
+    where step i = Sink $ liftM cont (f i)
+          cont Nothing = Cont step (return Nothing)
+          cont result  = Done $ return result

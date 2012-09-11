@@ -13,7 +13,6 @@ module Data.SouSiT.Source (
     (=+=),
     (=+|=),
     -- * source construction
-    decorateSource,
 --    actionSource,
 --    bracketActionSource,
 ) where
@@ -55,11 +54,6 @@ concatSources src1 src2 = BasicSource f
 concatSources2 :: (Source2 src1, Source2 src2, Monad m) => src1 m a -> src2 m a -> BasicSource2 m a
 concatSources2 src1 src2 = BasicSource2 f
     where f sink = feedToSink src1 sink >>= feedToSink src2
-
--- | Decorates a Source with a monadic function. Can be used to produce debug output and such.
-decorateSource :: (Monad m, Source src) => (a -> m ()) -> src m a -> BasicSource m a
-decorateSource df src = BasicSource step
-    where step sink = transfer src (decorateSink df sink)
 
 -- | Concatenates two sources.
 (=+=) :: (Source2 src1, Source2 src2, Monad m) => src1 m a -> src2 m a -> BasicSource2 m a
