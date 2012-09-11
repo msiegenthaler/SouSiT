@@ -24,12 +24,10 @@ module Data.SouSiT.Trans (
     -- * Dispersing
     disperse,
     -- * Chaining/Looping
-{-
+    andThen,
     loop,
     loopN,
     sequence,
-    andThen,
-  -}
     -- * Handling of Either
     eitherRight,
     eitherLeft,
@@ -177,23 +175,22 @@ filterMap f = mapSinkTransFun fun
                             (Just i') -> filterMap f $ nf i'
                             Nothing   -> filterMap f $ contSink nf cf
 
-{-
 -- | Executes with t1 and when t1 ends, then the next input is fed to through t2.
 andThen :: Transform a b -> Transform a b -> Transform a b
 andThen t1 t2 = (sinkUnwrap t2) . t1 . sinkWrap
 
 data WrapRes i m r = SinkIsDone (m r)
-                   | SinkIsCont (i -> m (Sink i m r)) (m r)
+                   | SinkIsCont (i -> Sink i m r) (m r)
 
 sinkUnwrap :: Monad m => Transform a b -> Sink a m (WrapRes b m r) -> Sink a m r
 sinkUnwrap t = Sink . (>>= handle) . sinkStatus
-    where handle (Cont nf cf) = return $ Cont (liftM (sinkUnwrap t) . nf) (cf >>= unwrapRes)
+    where handle (Cont nf cf) = return $ Cont (sinkUnwrap t . nf) (cf >>= unwrapRes)
           handle (Done r)     = liftM (t . recSink) r >>= sinkStatus
 
 sinkWrap :: Monad m => Sink i m r -> Sink i m (WrapRes i m r)
 sinkWrap = Sink . liftM f . sinkStatus
     where f (Done r)     = Done $ return $ SinkIsDone r
-          f (Cont nf cf) = Cont (liftM sinkWrap . nf) (return $ SinkIsCont nf cf)
+          f (Cont nf cf) = Cont (sinkWrap . nf) (return $ SinkIsCont nf cf)
 
 recSink :: Monad m => WrapRes i m r -> Sink i m r
 recSink (SinkIsDone r)     = doneSink r
@@ -220,7 +217,7 @@ loopN :: Int -> Transform a b -> Transform a b
 loopN n t | n > 1  = andThen t $ loopN (n - 1) t
           | n == 1 = t
           | otherwise = error $ "Invalid n=" ++ show n ++ " in T.loopN"
--}
+
 
 -- | Applies a function to each element and passes on every element of the result list seperatly.
 flatMap :: (a -> [b]) -> Transform a b
