@@ -21,21 +21,21 @@ firstSink = input
 
 elemCountSource n = listSource [1..n]
 
+io :: IO a -> IO a
+io = id
 
-countList n = runIdentity (elemCountSource n $$ countSink) 
+pure = runIdentity
 
-countListIO :: Int -> IO Int
-countListIO n = elemCountSource n $$ countSink
+countList :: Monad m => Int -> m Int
+countList n = elemCountSource n $$ countSink
 
-countListTrans n = runIdentity (elemCountSource n $$ T.count =$ firstSink)
-
-countListTransIO :: Int -> IO Int
-countListTransIO n = elemCountSource n $$ T.count =$ firstSink
+countListTrans :: Monad m => Int -> m Int
+countListTrans n = elemCountSource n $$ T.count =$ firstSink
 
 
 main = defaultMain [
-            bench "count elems from listSource in Identity" $ whnf countList c,
-            bench "count elems from listSource in IO" $ countListIO c,
-            bench "count elems in Trans from listSource in Identity" $ whnf countListTrans c,
-            bench "count elems in Trans from listSource in IO" $ countListTransIO c
+            bench "count elems from listSource in Identity" $ whnf (pure . countList) c,
+            bench "count elems from listSource in IO" $ io $ countList $ c,
+            bench "count elems in Trans from listSource in Identity" $ whnf (pure . countListTrans) c,
+            bench "count elems in Trans from listSource in IO" $ io $ countListTrans $ c
     ] where c = 100000
