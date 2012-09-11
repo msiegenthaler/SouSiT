@@ -29,10 +29,10 @@ module Data.SouSiT.Trans (
     loopN,
     sequence,
     andThen,
+  -}
     -- * Handling of Either
     eitherRight,
     eitherLeft,
-  -}
     -- * Utilities
     TransFun,
     applyTransFun,
@@ -226,20 +226,19 @@ loopN n t | n > 1  = andThen t $ loopN (n - 1) t
 flatMap :: (a -> [b]) -> Transform a b
 flatMap f = map f =$= disperse
 
-{-
+
 -- | Only lets the 'rights' of Either pass.
 eitherRight :: Transform (Either a b) b
 eitherRight = mapSinkStatus f
     where f (Done r)     = Done r
-          f (Cont nf cf) = Cont (liftM eitherRight . handle) cf
-            where handle = either (return . ignore) nf
+          f (Cont nf cf) = Cont (eitherRight . handle) cf
+            where handle = either ignore nf
                   ignore _ = contSink nf cf
 
 -- | Only lets the 'lefts' of Either pass.
 eitherLeft :: Transform (Either a b) a
 eitherLeft = mapSinkStatus f
     where f (Done r)     = Done r
-          f (Cont nf cf) = Cont (liftM eitherLeft . handle) cf
-            where handle = either nf (return . ignore)
+          f (Cont nf cf) = Cont (eitherLeft . handle) cf
+            where handle = either nf ignore
                   ignore _ = contSink nf cf
--}
