@@ -18,10 +18,12 @@ module Data.SouSiT.Trans (
     filter,
     filterMap,
     flatMap,
+-}
     -- * Accumulation
     accumulate,
-    buffer,
+--    buffer,
     count,
+{-
     -- * Dispersing
     disperse,
     -- * Chaining/Looping
@@ -113,21 +115,19 @@ takeUntilEq e = takeUntil (e ==)
 takeWhile :: (a -> Bool) -> Transform a a
 takeWhile f = takeUntil (not . f)
 
-{-
+
 -- | Accumulates all elements with the accumulator function.
 accumulate :: b -> (b -> a -> b) -> Transform a b
-accumulate acc f = mapSinkStatus step
-    where step (Done r)     = Done r
-          step (Cont nf cf) = Cont nf' cf'
-            where nf' i = return $ accumulate (f acc i) f $ contSink nf cf
-                  cf' = nf acc >>= closeSink
+accumulate iacc f = mapSinkStatus fun
+    where fun (Done r) = Done r
+          fun (Cont nf _) = step iacc
+            where step acc = Cont (Sink . return . step . f acc) (closeSink (nf acc))
 
 -- | Counts the received elements.
 count :: Num n => Transform a n
 count = accumulate 0 step
     where step i _ = i + 1
 
--}
 {-
 -- | Accumulates up to n elements with the accumulator function and then releases it.
 buffer :: Int -> b -> (b -> a -> b) -> Transform a b
