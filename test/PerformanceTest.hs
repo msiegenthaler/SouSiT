@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module Main (
     main
 ) where
@@ -12,8 +13,8 @@ import Control.Monad.Identity
 
 countSink :: (Num n, Monad m) => Sink a m n
 countSink = step 0
-  where step n = contSink f (return n)
-          where f _ = return $ step (n + 1)
+  where step !n = contSink f (return n)
+          where f _ = step (n + 1)
 
 firstSink :: Monad m => Sink a m a
 firstSink = input

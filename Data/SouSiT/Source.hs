@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RankNTypes, BangPatterns #-}
 
 module Data.SouSiT.Source (
     Source,
@@ -13,9 +13,8 @@ module Data.SouSiT.Source (
     (=+=),
     (=+|=),
     -- * source construction
-    decorateSource,
     actionSource,
-    bracketActionSource,
+    bracketActionSource
 ) where
 
 import Data.SouSiT.Sink
@@ -56,11 +55,6 @@ concatSources2 :: (Source2 src1, Source2 src2, Monad m) => src1 m a -> src2 m a 
 concatSources2 src1 src2 = BasicSource2 f
     where f sink = feedToSink src1 sink >>= feedToSink src2
 
--- | Decorates a Source with a monadic function. Can be used to produce debug output and such.
-decorateSource :: (Monad m, Source src) => (a -> m ()) -> src m a -> BasicSource m a
-decorateSource df src = BasicSource step
-    where step sink = transfer src (decorateSink df sink)
-
 -- | Concatenates two sources.
 (=+=) :: (Source2 src1, Source2 src2, Monad m) => src1 m a -> src2 m a -> BasicSource2 m a
 (=+=) = concatSources2
@@ -70,6 +64,7 @@ infixl 3 =+=
 (=+|=) :: (Source2 src1, Source src2, Monad m) => src1 m a -> src2 m a -> BasicSource m a
 (=+|=) = concatSources
 infixl 3 =+|=
+
 
 -- | Source that executes a monadic action to get its inputs. Terminates when the sink terminates
 --   or the action returns Nothing.
@@ -84,8 +79,8 @@ bracketActionSource open close f = BasicSource2 handle
             where step a = handleActionSource (f a) sink
 
 handleActionSource :: Monad m => m (Maybe i) -> Sink i m r -> m (Sink i m r)
-handleActionSource f sink = do s <- sinkStatus sink
-                               i <- f
-                               step s i
-    where step (Cont nf _) (Just i) = nf i
-          step _ _ = return sink
+handleActionSource f !sink = sinkStatus sink >>= handleStatus
+    where handleStatus (Done _)    = return sink
+          handleStatus (Cont nf _) = f >>= handleInput nf
+          handleInput _  Nothing  = return sink
+          handleInput nf (Just i) = handleActionSource f (nf i)
