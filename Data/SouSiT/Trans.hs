@@ -21,7 +21,7 @@ module Data.SouSiT.Trans (
 -}
     -- * Accumulation
     accumulate,
---    buffer,
+    buffer,
     count,
 {-
     -- * Dispersing
@@ -118,9 +118,9 @@ takeWhile f = takeUntil (not . f)
 
 -- | Accumulates all elements with the accumulator function.
 accumulate :: b -> (b -> a -> b) -> Transform a b
-accumulate iacc f = mapSinkStatus fun
+accumulate initAcc f = mapSinkStatus fun
     where fun (Done r) = Done r
-          fun (Cont nf _) = step iacc
+          fun (Cont nf _) = step initAcc
             where step acc = Cont (Sink . return . step . f acc) (closeSink (nf acc))
 
 -- | Counts the received elements.
@@ -128,22 +128,16 @@ count :: Num n => Transform a n
 count = accumulate 0 step
     where step i _ = i + 1
 
-{-
 -- | Accumulates up to n elements with the accumulator function and then releases it.
 buffer :: Int -> b -> (b -> a -> b) -> Transform a b
-buffer initN initAcc f | initN < 1 = error $ "Cannot buffer " ++ show initN ++ " elements"
-                       | otherwise = step initN initAcc
-    where step 1 acc = mapSinkStatus handle
-                where handle (Done r)     = Done r
-                      handle (Cont nf _) = Cont nf' cf'
-                        where nf' i = liftM (step initN initAcc) $ nf (f acc i)
-                              cf' = nf acc >>= closeSink
-          step n acc = mapSinkStatus handle
-                where handle (Done r)     = Done r
-                      handle (Cont nf cf) = Cont nf' cf'
-                        where nf' i = return $ step (n-1) (f acc i) $ contSink nf cf
-                              cf' = nf acc >>= closeSink
--}
+buffer initN initAcc f = if initN > 0 then mapSinkStatus fun
+                                      else error $ "Cannot buffer " ++ show initN ++ " elements"
+    where fun (Done r) = Done r
+          fun (Cont nf _) = step initN initAcc
+            where step 1 acc = Cont nf' (closeSink (nf acc))
+                        where nf' i = Sink $ liftM fun $ sinkStatus $ nf (f acc i)
+                  step n acc = Cont (Sink . return . step (n-1) . f acc) (closeSink (nf acc))
+
 {-
 -- | Yield all elements of the array as seperate outputs.
 disperse :: Transform [a] a
