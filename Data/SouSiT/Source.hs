@@ -14,7 +14,7 @@ module Data.SouSiT.Source (
     (=+|=),
     -- * source construction
     actionSource,
---    bracketActionSource,
+    bracketActionSource
 ) where
 
 import Data.SouSiT.Sink
@@ -71,16 +71,6 @@ infixl 3 =+|=
 actionSource :: Monad m => m (Maybe i) -> BasicSource2 m i
 actionSource f = BasicSource2 (handleActionSource f)
 
-handleActionSource :: Monad m => m (Maybe i) -> Sink i m r -> m (Sink i m r)
-handleActionSource f !sink = sinkStatus sink >>= handleStatus
-    where handleStatus (Done _)    = return sink
-          handleStatus (Cont nf _) = f >>= handleInput nf
-          handleInput nf Nothing  = return sink
-          handleInput nf (Just i) = handleActionSource f (nf i)
-
-
-{-
-
 -- | Source that first opens a resource, then transfers itself to the sink and the closes the
 --   resource again (in a bracket).
 bracketActionSource :: IO a -> (a -> IO ()) -> (a -> IO (Maybe i)) -> BasicSource2 IO i
@@ -89,9 +79,8 @@ bracketActionSource open close f = BasicSource2 handle
             where step a = handleActionSource (f a) sink
 
 handleActionSource :: Monad m => m (Maybe i) -> Sink i m r -> m (Sink i m r)
-handleActionSource f sink = do s <- sinkStatus sink
-                               i <- f
-                               step s i
-    where step (Cont nf _) (Just i) = nf i
-          step _ _ = return sink
--}
+handleActionSource f !sink = sinkStatus sink >>= handleStatus
+    where handleStatus (Done _)    = return sink
+          handleStatus (Cont nf _) = f >>= handleInput nf
+          handleInput _  Nothing  = return sink
+          handleInput nf (Just i) = handleActionSource f (nf i)
