@@ -79,7 +79,7 @@ map f = mapSinkMapping (map f) f
 
 -- | Transforms each input and carry a state between the inputs.
 mapWithState :: (s -> a -> (b,s)) -> s -> Transform a b
-mapWithState f s = mapSinkTransFun fun
+mapWithState f !s = mapSinkTransFun fun
     where fun nf _ i = let (i', s') = f s i in mapWithState f s' (nf i')
 
 -- | Transforms each input to a tuple (input, index of input).
@@ -130,9 +130,9 @@ buffer initN initAcc f = if initN > 0 then mapSinkStatus fun
                                       else error $ "Cannot buffer " ++ show initN ++ " elements"
     where fun (Done r) = Done r
           fun (Cont nf _) = step initN initAcc
-            where step 1 acc = Cont nf' (closeSink (nf acc))
+            where step 1 !acc = Cont nf' (closeSink (nf acc))
                         where nf' i = Sink $ liftM fun $ sinkStatus $ nf (f acc i)
-                  step n acc = Cont (Sink . return . step (n-1) . f acc) (closeSink (nf acc))
+                  step n !acc = Cont (Sink . return . step (n-1) . f acc) (closeSink (nf acc))
 
 -- | Yield all elements of the array as seperate outputs.
 disperse :: Transform [a] a
