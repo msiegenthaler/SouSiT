@@ -66,7 +66,7 @@ input :: Monad m => m a -> Sink a m a
 input = contSink doneSink'
 
 -- | Reads the next element.
---   The sink returns an error if it is closed before the input is received.
+--   The sink returns a fail if it is closed before the input is received.
 input' :: Monad m => Sink a m a
 input' = input noResult
 
