@@ -250,6 +250,7 @@ eitherLeft = mapSinkStatus f
             where handle = either nf ignore
                   ignore _ = contSink nf cf
 
+
 -- | Outputs every element received and the result to the System-out (using putStrLn).
 --   Format: <label>: <element>
 --           <label> is <result>
