@@ -39,7 +39,7 @@ instance Monad m => Monad (Sink i m) where
     return a = doneSink $ return a
     (Sink st) >>= f = Sink (st >>= mp)
         where mp (Done r) = liftM f r >>= sinkStatus
-              mp (Cont nf _) = return $ Cont ((>>= f) . nf) noResult
+              mp (Cont nf cf) = return $ Cont ((>>= f) . nf) (cf >>= closeSink . f)
 
 instance Monad m => Applicative (Sink i m) where
     pure = return
