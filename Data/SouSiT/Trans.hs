@@ -187,7 +187,9 @@ filterMap f = mapSinkTransFun fun
 
 -- | Executes with t1 and when t1 ends, then the next input is fed to through t2.
 andThen :: Transform a b -> Transform a b -> Transform a b
-andThen t1 t2 = sinkUnwrap t2 . t1 . sinkWrap
+andThen t1 t2 sink = Sink $ (>>= f) $ sinkStatus sink
+    where f (Done r)   = return $ Done r
+          f (Cont _ _) = sinkStatus $ sinkUnwrap t2 $ t1 $ sinkWrap sink
 
 data WrapRes i m r = SinkIsDone (m r)
                    | SinkIsCont (i -> Sink i m r) (m r)
