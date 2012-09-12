@@ -7,7 +7,6 @@ module Data.SouSiT.Sink (
     input,
     input',
     skip,
-    skip',
     -- * utility functions
     appendSink,
     (=||=),
@@ -72,17 +71,11 @@ input' :: Monad m => Sink a m a
 input' = input noResult
 
 
--- | Skips n input elements. If the sink is closed before n inputs are received
---   then the second parameter is returned as the sinks value.
-skip :: (Eq n, Num n, Monad m) => n -> m () -> Sink a m ()
-skip 0 _ = doneSink (return ())
-skip n c = contSink f c
-    where f _ = skip (n-1) c
-
--- | Skips n input elements. If the sink is closed during the skipping then an
---   error value is returned (not enough input).
-skip' :: (Eq n, Num n, Monad m) => n -> Sink a m ()
-skip' = flip skip noResult
+-- | Skips n input elements. If the sink is closed before then the result will also be ().
+skip :: (Eq n, Num n, Monad m) => n -> Sink a m ()
+skip 0 = doneSink (return ())
+skip n = contSink f (return ())
+    where f _ = skip (n-1)
 
 
 -- | Concatenates two sinks that produce a monoid.
