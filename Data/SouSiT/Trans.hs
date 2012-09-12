@@ -3,6 +3,7 @@
 module Data.SouSiT.Trans (
     -- * Element Transformation
     map,
+    mapM,
     mapWithState,
     zipWithIndex,
     --- * Take / Drop
@@ -37,10 +38,11 @@ module Data.SouSiT.Trans (
     mapSinkTransFun,
     applyMapping,
     mapSinkMapping,
-    toDoneTrans
+    toDoneTrans,
+    debug
 ) where
 
-import Prelude hiding (map, take, takeWhile, drop, dropWhile, sequence, filter)
+import Prelude hiding (map, mapM, take, takeWhile, drop, dropWhile, sequence, filter)
 import qualified Prelude as P
 import Data.SouSiT.Sink
 import Data.SouSiT.Transform
@@ -76,6 +78,14 @@ toDoneTrans = mapSinkStatus fun
 -- | Transforms each input individually by applying the function.
 map :: (a -> b) -> Transform a b
 map f = mapSinkMapping (map f) f
+
+-- | Transforms each input individually by applying the monadic function.
+--   Warning: This is not really a Transform, since it isn't pure.
+mapM :: Monad m => (b -> m a) -> Sink a m r -> Sink b m r
+mapM action sink = Sink (liftM f (sinkStatus sink))
+    where f (Done r) = Done r
+          f (Cont nf cf) = Cont nf' cf
+              where nf' i = mapM action $ Sink $ action i >>= sinkStatus . nf
 
 -- | Transforms each input and carry a state between the inputs.
 mapWithState :: (s -> a -> (b,s)) -> s -> Transform a b
@@ -239,3 +249,11 @@ eitherLeft = mapSinkStatus f
           f (Cont nf cf) = Cont (eitherLeft . handle) cf
             where handle = either nf ignore
                   ignore _ = contSink nf cf
+
+-- | Outputs every element received and the result to the System-out (using putStrLn).
+--   Format: <label>: <element>
+--           <label> is <result>
+debug :: (Show a, Show r) => String -> Sink a IO r -> Sink a IO r
+debug label sink = mapM f sink >>= g
+    where f i = putStrLn (label ++ ": " ++ show i) >> return i
+          g r = doneSink $ putStrLn (label ++ " is " ++ show r) >> return r
