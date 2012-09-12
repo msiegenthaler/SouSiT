@@ -70,7 +70,6 @@ input = contSink doneSink'
 input' :: Monad m => Sink a m a
 input' = input noResult
 
-
 -- | Skips n input elements. If the sink is closed before then the result will also be ().
 skip :: (Eq n, Num n, Monad m) => n -> Sink a m ()
 skip 0 = doneSink (return ())
