@@ -25,28 +25,28 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Resource
 
 
-fileSourceB :: (Handle -> IO a) -> FilePath -> BasicSource2 IO a
-fileSourceB get path = hSource' get (openBinaryFile path ReadMode)
+fileSourceB :: (MonadIO m, MonadResource m) => (Handle -> IO a) -> FilePath -> BasicSource2 m a
+fileSourceB get path = hSourceRes (liftIO. get) $ openBinaryFile path ReadMode
 
-fileSourceT :: (Handle -> IO a) -> FilePath -> BasicSource2 IO a
-fileSourceT get path = hSource' get (openFile path ReadMode)
+fileSourceT :: (MonadIO m, MonadResource m) => (Handle -> IO a) -> FilePath -> BasicSource2 m a
+fileSourceT get path = hSourceRes (liftIO . get) $ openFile path ReadMode
 
 
 -- | Creates a Source2 for the file read as characters.
-fileSourceChar :: FilePath -> BasicSource2 IO Char
+fileSourceChar :: (MonadIO m, MonadResource m) => FilePath -> BasicSource2 m Char
 fileSourceChar = fileSourceT hGetChar
 
 -- | Creates a Source2 for the file read linewise as string
-fileSourceLine :: FilePath -> BasicSource2 IO String
+fileSourceLine :: (MonadIO m, MonadResource m) => FilePath -> BasicSource2 m String
 fileSourceLine = fileSourceT hGetLine
 
 -- | Creates a Source2 for file read as ByteStrings (hGetSome).
-fileSourceByteString :: Int -> FilePath -> BasicSource2 IO BS.ByteString
+fileSourceByteString :: (MonadIO m, MonadResource m) => Int -> FilePath -> BasicSource2 m BS.ByteString
 fileSourceByteString chunk = fileSourceB rd
     where rd h = BS.hGetSome h chunk
 
 -- | Creates a Source2 for file read as single bytes (buffered).
-fileSourceWord8 :: FilePath -> BasicSource IO Word8
+fileSourceWord8 :: (MonadIO m, MonadResource m) => FilePath -> BasicSource m Word8
 fileSourceWord8 path = fileSourceByteString word8ChunkSize path $= T.map BS.unpack =$= T.disperse
 
 word8ChunkSize = 256
