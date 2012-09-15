@@ -21,7 +21,8 @@ import Data.SouSiT
 import Data.SouSiT.Handle
 import qualified Data.SouSiT.Trans as T
 import Data.Word
-
+import Control.Monad.IO.Class
+import Control.Monad.Trans.Resource
 
 
 fileSourceB :: (Handle -> IO a) -> FilePath -> BasicSource2 IO a
@@ -51,33 +52,34 @@ fileSourceWord8 path = fileSourceByteString word8ChunkSize path $= T.map BS.unpa
 word8ChunkSize = 256
 
 
+liftPut put h a = liftIO $ put h a
 
-fileSinkT :: (Handle -> a -> IO ()) -> FilePath -> Sink a IO ()
-fileSinkT put path = hSink' put $ openFile path WriteMode
+fileSinkT :: (MonadIO m, MonadResource m) => (Handle -> a -> IO ()) -> FilePath -> Sink a m ()
+fileSinkT put path = hSinkRes (liftPut put) $ openFile path WriteMode
 
-fileSinkB :: (Handle -> a -> IO ()) -> FilePath -> Sink a IO ()
-fileSinkB put path = hSink' put $ openBinaryFile path WriteMode
+fileSinkB :: (MonadIO m, MonadResource m) => (Handle -> a -> IO ()) -> FilePath -> Sink a m ()
+fileSinkB put path = hSinkRes (liftPut put) $ openBinaryFile path WriteMode
 
 -- | Creates a sink that writes the Chars into the specified file.
-fileSinkChar :: FilePath -> Sink Char IO ()
+fileSinkChar :: (MonadIO m, MonadResource m) => FilePath -> Sink Char m ()
 fileSinkChar = fileSinkT hPutChar
 
 -- | Creates a sink that writes the input into the file (without adding newlines).
-fileSinkString :: FilePath -> Sink String IO ()
+fileSinkString :: (MonadIO m, MonadResource m) => FilePath -> Sink String m ()
 fileSinkString = fileSinkT hPutStr
 
 -- | Creates a sink that writes each input as a line into the file.
-fileSinkLine :: FilePath -> Sink String IO ()
+fileSinkLine :: (MonadIO m, MonadResource m) => FilePath -> Sink String m ()
 fileSinkLine = fileSinkT hPutStrLn
 
 -- | Creates a sink that writes the ByteStrings into the file.
-fileSinkByteString :: FilePath -> Sink BS.ByteString IO ()
+fileSinkByteString :: (MonadIO m, MonadResource m) => FilePath -> Sink BS.ByteString m ()
 fileSinkByteString = fileSinkB BS.hPut
 
 -- | Creates an unbuffered sink for writing bytes into a file.
-fileSinkWord8Unbuffered :: FilePath -> Sink Word8 IO ()
+fileSinkWord8Unbuffered :: (MonadIO m, MonadResource m) => FilePath -> Sink Word8 m ()
 fileSinkWord8Unbuffered path = T.map BS.singleton =$ fileSinkByteString path
 
 -- | Creates a sink for writing bytes into a file. The first parameter is the size of the buffer.
-fileSinkWord8 :: Int -> FilePath -> Sink Word8 IO ()
+fileSinkWord8 :: (MonadIO m, MonadResource m) => Int -> FilePath -> Sink Word8 m ()
 fileSinkWord8 bs path = T.buffer bs BS.empty BS.snoc =$ fileSinkByteString path
