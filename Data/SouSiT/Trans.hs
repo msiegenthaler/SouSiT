@@ -32,7 +32,11 @@ module Data.SouSiT.Trans (
     -- * Handling of Either
     eitherRight,
     eitherLeft,
+    -- * Serialization (cereal)
+    serialize,
+    deserialize,
     -- * Utilities
+    mapSinkStatus,
     TransFun,
     applyTransFun,
     mapSinkTransFun,
@@ -46,6 +50,8 @@ import Prelude hiding (map, mapM, take, takeWhile, drop, dropWhile, sequence, fi
 import qualified Prelude as P
 import Data.SouSiT.Sink
 import Data.SouSiT.Transform
+import Data.ByteString (ByteString)
+import qualified Data.Serialize as S
 import Control.Monad (liftM)
 import Control.Monad.IO.Class
 
@@ -262,3 +268,27 @@ debug label sink = mapM f sink >>= g
     where f i = output (label ++ ": " ++ show i) >> return i
           g r = doneSink $ output (label ++ " is " ++ show r) >> return r
           output = liftIO . putStrLn
+
+
+-- | Serialize the elements into ByteString using cereal. For every input there is exactly one
+--   output.
+serialize :: S.Serialize a => Transform a ByteString
+serialize = map S.encode
+
+-- | Deserializes ByteString elements. The ByteStrings may be chunked, but the beginnings
+--   of values must be aligned to the chunks. If this is not the case then consider splitting
+--   the ByteStrings by the appropriate start delimiter (if available) or split them up into
+--   singletons.
+deserialize :: S.Serialize b => Transform ByteString b
+deserialize = deserialize' []
+
+deserialize' :: S.Serialize b => [ByteString -> S.Result b] -> Transform ByteString b
+deserialize' ips = mapSinkTransFun fun
+    where fun nf cf i = deserialize' ps' $ feedList bs $ contSink nf cf
+            where (ps', bs) = tryToParse (S.runGetPartial S.get:ips) i
+          tryToParse [] _ = ([],[])
+          tryToParse (p:ps) i = case p i of
+                    (S.Done b _)   -> (ps',  b:bs)
+                    (S.Fail _)     -> (ps',  bs)
+                    (S.Partial p') -> (p':ps,bs)
+            where (ps', bs) = tryToParse ps i
