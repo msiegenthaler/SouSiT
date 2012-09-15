@@ -29,7 +29,7 @@ copyright:           (c) 2012 Mario Siegenthaler
 category:            Control
 build-type:          Simple
 cabal-version:       >= 1.8
-
+extra-source-files:  README.md test/PerformanceTest.hs
 
 library
   exposed-modules: Data.SouSiT, Data.SouSiT.Sink, Data.SouSiT.Source, Data.SouSiT.Transform,
