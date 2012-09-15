@@ -260,14 +260,11 @@ eitherLeft = mapSinkStatus f
                   ignore _ = contSink nf cf
 
 
--- | Outputs every element received and the result to the System-out (using putStrLn).
+-- | Outputs every element received to the System-out (using putStrLn).
 --   Format: <label>: <element>
---           <label> is <result>
-debug :: (Show a, Show r, MonadIO m) => String -> Sink a m r -> Sink a m r
-debug label sink = mapM f sink >>= g
-    where f i = output (label ++ ": " ++ show i) >> return i
-          g r = doneSink $ output (label ++ " is " ++ show r) >> return r
-          output = liftIO . putStrLn
+debug :: (Show a, MonadIO m) => String -> Sink a m r -> Sink a m r
+debug label sink = mapM f sink
+    where f i = (liftIO . putStrLn) (label ++ ": " ++ show i) >> return i
 
 
 -- | Serialize the elements into ByteString using cereal. For every input there is exactly one
