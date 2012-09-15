@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module Main (
     main
 ) where
@@ -12,18 +13,18 @@ import Control.Monad.Identity
 
 countSink :: (Num n, Monad m) => Sink a m n
 countSink = step 0
-  where step n = contSink f (return n)
-          where f _ = return $ step (n + 1)
+  where step !n = contSink f (return n)
+          where f _ = step (n + 1)
 
 firstSink :: Monad m => Sink a m a
-firstSink = input
+firstSink = input'
 
 elemCountSource n = listSource [1..n]
 
-pure = runIdentity
 io :: IO a -> IO a
 io = id
 
+pure = runIdentity
 
 countList :: Monad m => Int -> m Int
 countList n = elemCountSource n $$ countSink
@@ -62,7 +63,16 @@ filterFew :: Monad m => Int -> m Int
 filterFew n = elemCountSource n $$ T.filter ((== 0) . (`mod` 1000)) =$ countSink
 
 loopTakeDrop :: Monad m => Int -> m Int
-loopTakeDrop n = elemCountSource n $$ T.loop (T.drop 1 =$= T.take 1) =$ countSink
+loopTakeDrop n = elemCountSource n $$ T.loop (T.drop 1 . T.take 1) =$ countSink
+
+zipWithIndex :: Monad m => Int -> m Int
+zipWithIndex n = elemCountSource n $$ T.zipWithIndex =$ countSink
+
+bufferSmall :: Monad m => Int -> m Int
+bufferSmall n = elemCountSource n $$ T.buffer 10 0 (+) =$ countSink
+
+bufferLarge :: Monad m => Int -> m Int
+bufferLarge n = elemCountSource n $$ T.buffer 10000 0 (+) =$ countSink
 
 
 main = defaultMain [
@@ -83,6 +93,9 @@ main = defaultMain [
                 bench "takeUntil many elems" $ io $ takeUntilListMany c,
                 bench "filter retaining half the elems" $ io $ filterHalf c,
                 bench "filter retaining few elems" $ io $ filterFew c,
-                bench "loop take1 drop1" $ io $ loopTakeDrop c
+                bench "loop take1 drop1" $ io $ loopTakeDrop c,
+                bench "zip with the index" $ io $ zipWithIndex c,
+                bench "buffer to small packets" $ io $ bufferSmall c,
+                bench "buffer to large packets" $ io $ bufferLarge c
             ]
     ] where c = 100000

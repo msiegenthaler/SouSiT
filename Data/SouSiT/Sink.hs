@@ -1,13 +1,13 @@
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE Rank2Types, BangPatterns #-}
 module Data.SouSiT.Sink (
     Sink(..),
     SinkStatus(..),
     closeSink,
     -- * monadic functions
     input,
+    input',
     skip,
     -- * utility functions
-    liftSink,
     appendSink,
     (=||=),
     feedList,
@@ -15,7 +15,6 @@ module Data.SouSiT.Sink (
     contSink,
     doneSink,
     doneSink',
-    decorateSink,
     actionSink,
     openCloseActionSink,
     maybeSink,
@@ -26,29 +25,22 @@ import Control.Applicative
 import Control.Monad
 
 
-liftSink :: (Monad m, Monad m') => (forall x . m x -> m' x) -> Sink i m r -> Sink i m' r
-liftSink t (Sink status) = Sink $ t (liftM trans status)
-    where trans (Cont nf cf) = Cont nf' (t cf)
-            where nf' i = liftM (liftSink t) $ t (nf i)
-          trans (Done r)     = Done (t r)
-
 --- | Sink for data. Aggregates data to produce a single (monadic) result.
 data Sink i m r = Sink { sinkStatus :: m (SinkStatus i m r) }
 
-data SinkStatus i m r = Cont (i -> m (Sink i m r)) (m r)
+data SinkStatus i m r = Cont (i -> Sink i m r) (m r)
                       | Done (m r)
-
 
 instance Monad m => Functor (Sink i m) where
     fmap f (Sink st) = Sink (liftM mp st)
         where mp (Done r)  = Done (liftM f r)
-              mp (Cont nf cf) = Cont (liftM (fmap f) . nf) (liftM f cf)
+              mp (Cont nf cf) = Cont (fmap f . nf) (liftM f cf)
 
 instance Monad m => Monad (Sink i m) where
     return a = doneSink $ return a
     (Sink st) >>= f = Sink (st >>= mp)
         where mp (Done r) = liftM f r >>= sinkStatus
-              mp (Cont nf _) = return $ Cont (liftM (>>= f) . nf) noResult
+              mp (Cont nf cf) = return $ Cont ((>>= f) . nf) (cf >>= closeSink . f)
 
 instance Monad m => Applicative (Sink i m) where
     pure = return
@@ -67,17 +59,22 @@ closeSink (Sink st) = st >>= handle
           handle (Cont _ r) = r
 
 
--- | Reads a value.
-input :: Monad m => Sink a m a
-input = Sink (return $ Cont f noResult)
-    where f i = let r = return i in 
-            return $ Sink (return $ Done r)
+-- | Reads the next element.
+--   If the sink is closed while waiting for the input, then the parameter is returned
+--   as the sinks result.
+input :: Monad m => m a -> Sink a m a
+input = contSink doneSink'
 
--- | Skips n input values.
+-- | Reads the next element.
+--   The sink returns a fail if it is closed before the input is received.
+input' :: Monad m => Sink a m a
+input' = input noResult
+
+-- | Skips n input elements. If the sink is closed before then the result will also be ().
 skip :: (Eq n, Num n, Monad m) => n -> Sink a m ()
-skip 0 = return ()
-skip i = input >> skip (i-1)
-
+skip 0 = doneSink (return ())
+skip n = contSink f (return ())
+    where f _ = skip (n-1)
 
 
 -- | Concatenates two sinks that produce a monoid.
@@ -92,45 +89,39 @@ appendSink s1 s2 = do r1 <- s1
                       return $ mappend r1 r2
 
 -- | Feed a list of inputs to a sink.
-feedList :: Monad m => [i] -> Sink i m r -> m (Sink i m r)
-feedList [] s = return s
-feedList (x:xs) s = sinkStatus s >>= step
-    where step (Done _) = return s
-          step (Cont f _) = f x >>= feedList xs
+feedList :: Monad m => [i] -> Sink i m r -> Sink i m r
+feedList [] !s = s
+feedList (x:xs) !s = Sink (sinkStatus s >>= step)
+    where step (Done r)   = return $ Done r
+          step (Cont f _) = sinkStatus $ feedList xs $ f x
 
-contSink :: Monad m => (i -> m (Sink i m r)) -> m r -> Sink i m r
-contSink next close = Sink (return $ Cont next close)
+contSink :: Monad m => (i -> Sink i m r) -> m r -> Sink i m r
+contSink next = Sink . return . Cont next
 
 doneSink :: Monad m => m r -> Sink i m r
-doneSink result = Sink (return $ Done result)
+doneSink = Sink . return . Done
 
 doneSink' :: Monad m => r -> Sink i m r
-doneSink' = doneSink . return
+doneSink' = Sink . return . Done . return
 
--- | Decorates a Sink with a monadic function. Can be used to produce debug output and such.
-decorateSink :: Monad m => (i -> m ()) -> Sink i m r -> Sink i m r
-decorateSink df = Sink . liftM step . sinkStatus
-    where step (Done r) = Done r
-          step (Cont nf cf) = Cont nf' cf
-            where nf' i = liftM (decorateSink df) (df i >> nf i)
 
 -- | Sink that executes a monadic action per input received. Does not terminate.
 actionSink :: Monad m => (i -> m ()) -> Sink i m ()
 actionSink process = contSink f (return ())
-    where f i = process i >> return (actionSink process)
+    where f i = Sink $ process i >> sinkStatus (actionSink process)
 
 -- | First calls open, then processes every input with process and when the sink is closed
 --   close is called. Does not terminate.
 openCloseActionSink :: Monad m => m a -> (a -> m ()) -> (a -> i -> m ()) -> Sink i m ()
 openCloseActionSink open close process = contSink first (return ())
-    where first i = open >>= flip step i
-          step rs i = process rs i >> return (contSink (step rs) (close rs))
+    where first i = Sink $ open >>= flip step i
+          step rs i = process rs i >> return (Cont (Sink . step rs) (close rs))
 
 -- | Sink that executes f for every input.
 --   The sink continues as long as the action returns Nothing, when the action returns
 --   Just, then that value is the result of the sink (and the sink is 'full').
 maybeSink :: Monad m => (i -> m (Maybe r)) -> Sink i m (Maybe r)
 maybeSink f = contSink step (return Nothing)
-  where step i = f i >>= cont
-        cont Nothing = return $ maybeSink f
-        cont result = return $ doneSink' result
+    where step i = Sink $ liftM cont (f i)
+          cont Nothing = Cont step (return Nothing)
+          cont result  = Done $ return result

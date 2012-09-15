@@ -37,7 +37,7 @@ More types of sinks can be added by users of the library. Consider using either 
 ### Monadic Sink
 You can write sink in monad style
 
-Example that reads the first input, then skips the next three values and then reads two values and terminates. It outputs a tupe with the three values read.
+Example that reads the first input, then skips the next three values and then reads two values and terminates. It outputs a tuple with the three values read.
 
     mySink = do v1 <- input
                 skip 3

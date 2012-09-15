@@ -13,34 +13,35 @@ import Data.SouSiT.Source
 import Data.SouSiT.Sink
 import Control.Monad
 import Control.Concurrent.STM
+import Control.Monad.IO.Class
 
 
 -- | A sink that executes (atomically) a STM action for every input received.
 --   The sink continues as long as the action returns Nothing. When the action
 --   returns Just, then that value is the result of the sink.
-stmSink :: (a -> STM (Maybe r)) -> Sink a IO (Maybe r)
-stmSink f = maybeSink (atomically . f)
+stmSink :: MonadIO m => (a -> STM (Maybe r)) -> Sink a m (Maybe r)
+stmSink f = maybeSink (liftIO . atomically . f)
 
 -- | A sink that executes (atomically) a STM action for every input received.
 --   The sink never terminates.
-stmSink' :: (a -> STM ()) -> Sink a IO ()
-stmSink' f = actionSink (atomically . f)
+stmSink' :: MonadIO m => (a -> STM ()) -> Sink a m ()
+stmSink' f = actionSink (liftIO . atomically . f)
 
 -- | Sink that writes all items into a TChan.
-tchanSink :: TChan a -> Sink a IO ()
+tchanSink :: MonadIO m => TChan a -> Sink a m ()
 tchanSink chan = stmSink' (writeTChan chan)
 
 
 -- | Source that executes a STM action to get a new item. When the action returns 'Nothing'
 --   then the source is depleted.
-stmSource :: STM (Maybe a) -> BasicSource2 IO a
-stmSource f = actionSource (atomically f)
+stmSource :: MonadIO m => STM (Maybe a) -> BasicSource2 m a
+stmSource f = actionSource (liftIO . atomically $ f)
 
 -- | Source that executes a STM action to get a new item. Does never run out of items.
-stmSource' :: STM a -> BasicSource2 IO a
-stmSource' f = actionSource (atomically $ liftM Just f)
+stmSource' :: MonadIO m => STM a -> BasicSource2 m a
+stmSource' f = actionSource (liftIO . atomically $ liftM Just f)
 
 -- | Source that reads from a TChan. Does never run out of items (just waits for new ones
 --   written to the TChan).
-tchanSource :: TChan a -> BasicSource2 IO a
+tchanSource :: MonadIO m => TChan a -> BasicSource2 m a
 tchanSource c = stmSource' (readTChan c)

@@ -10,11 +10,10 @@ import Data.SouSiT.Sink
 
 -- | A source containing the elements of the list
 listSource :: Monad m => [a] -> BasicSource2 m a
-listSource l = BasicSource2 $ feedList l
+listSource l = BasicSource2 $ return . feedList l
 
 
 -- | A sink that collects all input into a list. Does never say SinkDone.
 listSink :: Monad m => Sink a m [a]
 listSink = step []
-    where step xs = Sink $ return $ Cont add (return xs)
-            where add x = return $ step (xs ++ [x])
+    where step xs = contSink (step . (xs ++) . return) (return xs)

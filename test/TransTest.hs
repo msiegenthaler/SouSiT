@@ -1,3 +1,4 @@
+{-# LANGUAGE Rank2Types, ImpredicativeTypes #-}
 module Main (main) where
 
 import Test.QuickCheck
@@ -55,9 +56,9 @@ takeUntilEqElNotInListIsInput d e = not (elem e d) ==> transList (T.takeUntilEq 
 takeUntilEqFirstIsEmpty d = not (null d) ==> transList (T.takeUntilEq (head d)) d == []
 
 -- id
-idIsTheSameAsMapPreludeId d = transList (T.map id) d == transList (T.id) d
+idIsTheSameAsMapPreludeId d = transList (T.map id) d == transList (id) d
 
-idDoesNotChangeInput d = transList (T.id) d == d
+idDoesNotChangeInput d = transList (id) d == d
 
 -- map
 mapIdDoesNotChangeInput d = transList (T.map id) d == d
@@ -120,17 +121,13 @@ mergeOfPureShouldBeSameAsSeperate = mergeCombos [
 
 mergeOfPureWithMappingShouldBeSameAsSeperate d =
         mergeTransTuples cmbs d && mergeTransTuples (fmap swap cmbs) d
-    where cs = [T.take 10, T.take 3,
+    where cs :: (Num n, Eq n, Ord n) => [Transform n n]
+          cs = [T.take 10, T.take 3,
                 T.takeUntil (>10), T.takeUntilEq 1,
                 T.accumulate 0 (+), T.accumulate 1 (*),
                 T.buffer 3 0 (+)]
+          ms :: Num n => [Transform n n]
           ms = [T.map (+1), T.map (*2)]
-          cmbs = [ (t1, t2) | t1 <- cs, t2 <- ms ]
-
-mergeOfPureWithZipWithIndexShouldBeSameAsSeperate d =
-        mergeTransTuples cmbs d && mergeTransTuples (fmap swap cmbs) d
-    where cs = [T.take 10, T.take 3]
-          ms = [T.zipWithIndex]
           cmbs = [ (t1, t2) | t1 <- cs, t2 <- ms ]
 
 swap (a, b) = (b, a)
@@ -141,7 +138,7 @@ mergeCombos ts = mergeTransTuples cmbs
 
 mergeTransTuples ts d = and $ fmap (uncurry (mergeSameAsSeperate d)) ts
 
-mergeSameAsSeperate :: Eq b => [Int] -> Transform Int a -> Transform a b -> Bool
+mergeSameAsSeperate :: Eq c => [Int] -> Transform Int b -> Transform b c -> Bool
 mergeSameAsSeperate d t1 t2 = runIdentity (listSource d $$ t1 =$= t2 =$ listSink) == l2
     where l1 = runIdentity (listSource d $$ t1 =$ listSink)
           l2 = runIdentity (listSource l1 $$ t2 =$ listSink)
@@ -371,16 +368,6 @@ tests =
         testProperty "of map and zipWithIndex should be same as seperate application" mergeOfMapWithZipWithIndexShouldBeSameAsSeperate,
         testProperty "of map with take should be same as seperate application" mergeOfMapWithTakeShouldBeSameAsSeparate,
         testProperty "of pure Ops should be same as seperate application" mergeOfPureShouldBeSameAsSeperate,
-        testProperty "of pure with map should be the same as seperate application" mergeOfPureWithMappingShouldBeSameAsSeperate,
-        testProperty "of pure with zipWithIndex should be the same as seperate application" mergeOfPureWithZipWithIndexShouldBeSameAsSeperate
+        testProperty "of pure with map should be the same as seperate application" mergeOfPureWithMappingShouldBeSameAsSeperate
       ]
     ]
-
-
-
-
-
-
-
-
-

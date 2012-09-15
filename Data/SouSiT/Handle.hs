@@ -1,59 +1,74 @@
 module Data.SouSiT.Handle (
     -- * Source
-    HSource,
     hSource,
     hSource',
+    hSourceRes,
     hSourceNoEOF,
     hSourceNoEOF',
+    hSourceResNoEOF,
     -- * Sink
-    HSink,
     hSink,
-    hSink'
+    hSinkRes
 ) where
 
 import Data.SouSiT.Source
 import Data.SouSiT.Sink
 import System.IO
 import Control.Monad
+import Control.Monad.IO.Class
+import Control.Monad.Trans.Resource
 
-
--- | Source for file IO-handle operations
-type HSource a = BasicSource2 IO a
 
 -- | Source from a handle. The handle will not be closed and is read till hIsEOF.
-hSource :: (Handle -> IO a) -> Handle -> HSource a
+hSource :: MonadIO m => (Handle -> m a) -> Handle -> BasicSource2 m a
 hSource get = actionSource . toEof get
 
 -- | Same as hSource, but opens the handle when transfer is called and closes it when
---   all data is read.
-hSource' :: (Handle -> IO a) -> IO Handle -> HSource a
-hSource' get open = bracketActionSource open hClose (toEof get)
+--   transfer/feedToSink completes.
+--   Uses 'bracket' to ensure safe release of the allocated resources.
+hSource' :: (Handle -> IO a) -> IO Handle -> BasicSource2 IO a
+hSource' get open = bracketActionSource open (liftIO . hClose) (toEof get)
 
-toEof get h = hIsEOF h >>= next
+-- | Same as hSource, but opens the handle when transfer is called and closes it when
+--   transfer/feedToSink completes.
+hSourceRes :: (MonadIO m, MonadResource m) => (Handle -> m a) -> IO Handle -> BasicSource2 m a
+hSourceRes get open = BasicSource2 fun
+    where fun sink = do (r,h) <- allocate open (liftIO . hClose)
+                        sink' <- feedToSink (actionSource $ toEof get h) sink
+                        release r
+                        return sink'
+
+toEof get h = (liftIO . hIsEOF) h >>= next
     where next True  = return Nothing
           next False = liftM Just (get h)
 
 
 -- | Same as hSource, but does not check for hIsEOF and therefore never terminates.
-hSourceNoEOF :: (Handle -> IO a) -> Handle -> HSource a
+hSourceNoEOF :: MonadIO m => (Handle -> m a) -> Handle -> BasicSource2 m a
 hSourceNoEOF get = actionSource . liftM Just . get
 
 -- | Same as hSource', but does not check for hIsEOF and therefore never terminates.
-hSourceNoEOF' :: (Handle -> IO a) -> IO Handle -> HSource a
+hSourceNoEOF' :: (Handle -> IO a) -> IO Handle -> BasicSource2 IO a
 hSourceNoEOF' get open = bracketActionSource open hClose (liftM Just . get)
 
+-- | Same as hSourceRes', but does not check for hIsEOF and therefore never terminates.
+hSourceResNoEOF :: (MonadIO m, MonadResource m) => (Handle -> m a) -> IO Handle -> BasicSource2 m a
+hSourceResNoEOF get open = BasicSource2 fun
+    where fun sink = do (r,h) <- allocate open (liftIO . hClose)
+                        sink' <- feedToSink (actionSource $ liftM Just $ get h) sink
+                        release r
+                        return sink'
 
--- | Sink for file IO-handle operations
-type HSink a = Sink a IO ()
 
 -- | Sink backed by a handle. The data will be written by the provided function.
 --   The sink will never change to the SinkDone state (if the device is full then
 --   the operation will simply fail).
 --   The handle is not closed and exceptions are not catched.
-hSink :: (Handle -> a -> IO ()) -> Handle -> HSink a
+hSink :: MonadIO m => (Handle -> a -> m ()) -> Handle -> Sink a m ()
 hSink put h = actionSink (put h)
 
--- | Same as hSink, but does open the handle only when the first item is written.
+-- | Same as hSink, but does opens the handle when the first item is written.
 --   The handle will be closed when the sink is closed.
-hSink' :: (Handle -> a -> IO ()) -> IO Handle -> HSink a
-hSink' put open = openCloseActionSink open hClose put
+hSinkRes :: (MonadIO m, MonadResource m) => (Handle -> a -> m ()) -> IO Handle -> Sink a m ()
+hSinkRes put open = openCloseActionSink o (release . fst) (put . snd)
+    where o = allocate open (liftIO . hClose)
