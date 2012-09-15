@@ -47,6 +47,7 @@ import qualified Prelude as P
 import Data.SouSiT.Sink
 import Data.SouSiT.Transform
 import Control.Monad (liftM)
+import Control.Monad.IO.Class
 
 
 mapSinkStatus :: Monad m => (SinkStatus a m r -> SinkStatus b m r) -> Sink a m r -> Sink b m r
@@ -256,7 +257,8 @@ eitherLeft = mapSinkStatus f
 -- | Outputs every element received and the result to the System-out (using putStrLn).
 --   Format: <label>: <element>
 --           <label> is <result>
-debug :: (Show a, Show r) => String -> Sink a IO r -> Sink a IO r
+debug :: (Show a, Show r, MonadIO m) => String -> Sink a m r -> Sink a m r
 debug label sink = mapM f sink >>= g
-    where f i = putStrLn (label ++ ": " ++ show i) >> return i
-          g r = doneSink $ putStrLn (label ++ " is " ++ show r) >> return r
+    where f i = output (label ++ ": " ++ show i) >> return i
+          g r = doneSink $ output (label ++ " is " ++ show r) >> return r
+          output = liftIO . putStrLn
