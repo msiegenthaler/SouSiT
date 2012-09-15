@@ -11,6 +11,7 @@ module Data.SouSiT.Sink (
     appendSink,
     (=||=),
     feedList,
+    liftSink,
     -- * sink construction
     contSink,
     doneSink,
@@ -125,3 +126,10 @@ maybeSink f = contSink step (return Nothing)
     where step i = Sink $ liftM cont (f i)
           cont Nothing = Cont step (return Nothing)
           cont result  = Done $ return result
+
+-- | Changes the monad of a sink based upon a conversion function that maps the original monad
+--   to the new one.
+liftSink :: (Monad m, Monad m') => (forall x . m x -> m' x) -> Sink i m r -> Sink i m' r
+liftSink t sink = Sink $ t (sinkStatus sink >>= trans)
+    where trans (Done r) = return $ Done (t r)
+          trans (Cont nf cf) = return $ Cont (liftSink t . nf) (t cf)
