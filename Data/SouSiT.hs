@@ -3,6 +3,7 @@ module Data.SouSiT (
     Sink,
     Fetch,
     input,
+    inputOr,
     skip,
     liftSink,
     liftFetch,
