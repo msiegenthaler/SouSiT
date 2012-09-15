@@ -1,12 +1,15 @@
 name:                sousit
 version:             0.2
-synopsis:            Source/Sink/Transform: An alternative to lazy IO and iteratees
---description:
+synopsis:            Source/Sink/Transform: An alternative to lazy IO and iteratees.
+
+description:         Haskell library for Sources, Sinks and Transformers. The data is pushed from the source through the transfomers into the sink. The sink or a transfomer can decide at any time to end the transfer (see Iteratees). The transformers are very reusable since they can not depend on side effects, so they can be used with files as well as with simple lists.
+
 license:             BSD3
 license-file:        LICENSE
 author:              Mario Siegenthaler
 maintainer:          msiegenthaler@inventsoft.ch
-copyright:
+homepage:            https://github.com/msiegenthaler/SouSiT
+copyright:           (c) 2012 Mario Siegenthaler
 category:            Control
 build-type:          Simple
 cabal-version:       >= 1.8
