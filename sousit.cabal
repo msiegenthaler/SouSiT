@@ -2,7 +2,23 @@ name:                sousit
 version:             0.3
 synopsis:            Source/Sink/Transform: An alternative to lazy IO and iteratees.
 
-description:         Haskell library for Sources, Sinks and Transformers. The data is pushed from the source through the transfomers into the sink. The sink or a transfomer can decide at any time to end the transfer (see Iteratees). The transformers are very reusable since they can not depend on side effects, so they can be used with files as well as with simple lists.
+description:
+        Haskell library for Sources, Sinks and Transformers.
+        The data is pushed from the source through the transfomers into the sink. The sink or a transfomer can decide at any time to end the transfer (see Iteratees).
+        The transformers are very reusable since they can not depend on side effects, so they can be used with files as well as with simple lists.
+        .
+        Allows you to build pipelines such as:
+        .
+            >>> listSource [1..10] $$ T.map(+1) =$= T.buffer 3 0 (+) =$ listSink
+            [9,18,27,11]
+        .
+        its possible to mix various type of sources and sinks, such as in:
+        .
+            >>> fileSourceLine \"myfile.txt\" $$ T.drop 1 =$= T.map (++ "!") =$ listSink
+            [\"Hello Mario!\", \"How're you doing?!\"]
+        .
+        For more documentation see <https://github.com/msiegenthaler/SouSiT>.
+
 
 license:             BSD3
 license-file:        LICENSE
@@ -29,3 +45,7 @@ test-suite sousit-test
   main-Is: TransTest.hs
   build-Depends: base > 4, mtl, sousit,
                  QuickCheck > 2, test-framework >= 0.3.3, test-framework-quickcheck2 >= 0.2.9  
+
+source-repository head
+  type:     git
+  location: git://github.com/msiegenthaler/SouSiT.git
