@@ -25,6 +25,7 @@ hSource get = actionSource . toEof get
 
 -- | Same as hSource, but opens the handle when transfer is called and closes it when
 --   transfer/feedToSink completes.
+--   Uses 'bracket' to ensure safe release of the allocated resources.
 hSource' :: (Handle -> IO a) -> IO Handle -> BasicSource2 IO a
 hSource' get open = bracketActionSource open (liftIO . hClose) (toEof get)
 
