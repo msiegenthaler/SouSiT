@@ -6,10 +6,9 @@ module Data.SouSiT (
     skip,
     -- * Source
     Source,
-    Source2,
     transfer,
-    BasicSource(..),
-    BasicSource2(..),
+    FeedSource,
+    SimpleSource(..),
     feedToSink,
     ($$),
     (=+=),

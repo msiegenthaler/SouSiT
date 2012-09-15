@@ -13,9 +13,9 @@ import Data.SouSiT.Transform
 import qualified Data.SouSiT.List as L
 import qualified Data.SouSiT.Trans as T
 
-type S a = BasicSource2 Identity a
+type S a = FeedSource Identity a
 
-listSource :: [a] -> BasicSource2 Identity a
+listSource :: [a] -> FeedSource Identity a
 listSource = L.listSource
 
 listSink :: Sink a Identity [a]

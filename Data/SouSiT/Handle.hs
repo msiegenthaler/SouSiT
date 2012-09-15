@@ -20,19 +20,19 @@ import Control.Monad.Trans.Resource
 
 
 -- | Source from a handle. The handle will not be closed and is read till hIsEOF.
-hSource :: MonadIO m => (Handle -> m a) -> Handle -> BasicSource2 m a
+hSource :: MonadIO m => (Handle -> m a) -> Handle -> FeedSource m a
 hSource get = actionSource . toEof get
 
 -- | Same as hSource, but opens the handle when transfer is called and closes it when
 --   transfer/feedToSink completes.
 --   Uses 'bracket' to ensure safe release of the allocated resources.
-hSource' :: (Handle -> IO a) -> IO Handle -> BasicSource2 IO a
+hSource' :: (Handle -> IO a) -> IO Handle -> FeedSource IO a
 hSource' get open = bracketActionSource open (liftIO . hClose) (toEof get)
 
 -- | Same as hSource, but opens the handle when transfer is called and closes it when
 --   transfer/feedToSink completes.
-hSourceRes :: (MonadIO m, MonadResource m) => (Handle -> m a) -> IO Handle -> BasicSource2 m a
-hSourceRes get open = BasicSource2 fun
+hSourceRes :: (MonadIO m, MonadResource m) => (Handle -> m a) -> IO Handle -> FeedSource m a
+hSourceRes get open = FeedSource fun
     where fun sink = do (r,h) <- allocate open (liftIO . hClose)
                         sink' <- feedToSink (actionSource $ toEof get h) sink
                         release r
@@ -44,16 +44,16 @@ toEof get h = (liftIO . hIsEOF) h >>= next
 
 
 -- | Same as hSource, but does not check for hIsEOF and therefore never terminates.
-hSourceNoEOF :: MonadIO m => (Handle -> m a) -> Handle -> BasicSource2 m a
+hSourceNoEOF :: MonadIO m => (Handle -> m a) -> Handle -> FeedSource m a
 hSourceNoEOF get = actionSource . liftM Just . get
 
 -- | Same as hSource', but does not check for hIsEOF and therefore never terminates.
-hSourceNoEOF' :: (Handle -> IO a) -> IO Handle -> BasicSource2 IO a
+hSourceNoEOF' :: (Handle -> IO a) -> IO Handle -> FeedSource IO a
 hSourceNoEOF' get open = bracketActionSource open hClose (liftM Just . get)
 
 -- | Same as hSourceRes', but does not check for hIsEOF and therefore never terminates.
-hSourceResNoEOF :: (MonadIO m, MonadResource m) => (Handle -> m a) -> IO Handle -> BasicSource2 m a
-hSourceResNoEOF get open = BasicSource2 fun
+hSourceResNoEOF :: (MonadIO m, MonadResource m) => (Handle -> m a) -> IO Handle -> FeedSource m a
+hSourceResNoEOF get open = FeedSource fun
     where fun sink = do (r,h) <- allocate open (liftIO . hClose)
                         sink' <- feedToSink (actionSource $ liftM Just $ get h) sink
                         release r
