@@ -60,7 +60,7 @@ mapSinkStatus :: Monad m => (SinkStatus a m r -> SinkStatus b m r) -> Sink a m r
 mapSinkStatus f = Sink . liftM f . sinkStatus
 
 
-type TransFun a b m r = (a -> Sink a m r) -> m r -> b -> Sink b m r
+type TransFun a b m r = (a -> m (Sink a m r)) -> m r -> b -> m (Sink b m r)
 
 applyTransFun :: Monad m => TransFun a b m r -> SinkStatus a m r -> SinkStatus b m r
 applyTransFun _ (Done r) = Done r
@@ -71,7 +71,8 @@ mapSinkTransFun f = mapSinkStatus (applyTransFun f)
 
 applyMapping :: Monad m => (Sink a m r -> Sink b m r) -> (b -> a) -> SinkStatus a m r -> SinkStatus b m r
 applyMapping _ _ (Done r) = Done r
-applyMapping ms mi (Cont nf cf) = Cont (ms . nf . mi) cf
+applyMapping ms mi (Cont nf cf) = Cont nf' cf
+    where nf' i = nf (mi i) >>= return . ms
 
 mapSinkMapping ms mi = mapSinkStatus $ applyMapping ms mi
 
@@ -92,12 +93,12 @@ mapM :: Monad m => (b -> m a) -> Sink a m r -> Sink b m r
 mapM action sink = Sink (liftM f (sinkStatus sink))
     where f (Done r) = Done r
           f (Cont nf cf) = Cont nf' cf
-              where nf' i = mapM action $ Sink $ action i >>= sinkStatus . nf
+            where nf' i = liftM (mapM action) (action i >>= nf)
 
 -- | Transforms each input and carry a state between the inputs.
 mapWithState :: (s -> a -> (b,s)) -> s -> Transform a b
 mapWithState f !s = mapSinkTransFun fun
-    where fun nf _ i = let (i', s') = f s i in mapWithState f s' (nf i')
+    where fun nf _ i = let (i', s') = f s i in liftM (mapWithState f s') (nf i')
 
 -- | Transforms each input to a tuple (input, index of input).
 -- I.e. for "Mario": (M, 0), (a, 1), (r, 2), (i, 3), (o, 4)
@@ -116,8 +117,8 @@ takeUntil :: (a -> Bool) -> Transform a a
 takeUntil p = mapSinkStatus fun
     where fun s@(Done _) = s
           fun (Cont nf cf) = Cont nf' cf
-            where nf' i = if p i then doneSink cf
-                          else takeUntil p (nf i)
+            where nf' i = if p i then return (doneSink cf)
+                          else liftM (takeUntil p) (nf i)
 
 -- | Takes inputs until the input matches the argument. The matching input is not passed on.
 takeUntilEq :: Eq a => a -> Transform a a
@@ -134,7 +135,7 @@ accumulate :: b -> (b -> a -> b) -> Transform a b
 accumulate initAcc f = mapSinkStatus fun
     where fun (Done r) = Done r
           fun (Cont nf _) = step initAcc
-            where step !acc = Cont (Sink . return . step . f acc) (closeSink (nf acc))
+            where step !acc = Cont (return . Sink . return . step . f acc) (nf acc >>= closeSink)
 
 -- | Counts the received elements.
 count :: Num n => Transform a n
@@ -147,15 +148,15 @@ buffer initN initAcc f = if initN > 0 then mapSinkStatus fun
                                       else error $ "Cannot buffer " ++ show initN ++ " elements"
     where fun (Done r) = Done r
           fun (Cont nf _) = step initN initAcc
-            where step 1 !acc = Cont nf' (closeSink (nf acc))
-                        where nf' i = Sink $ liftM fun $ sinkStatus $ nf (f acc i)
-                  step n !acc = Cont (Sink . return . step (n-1) . f acc) (closeSink (nf acc))
+            where step 1 !acc = Cont (return . nf') (nf acc >>= closeSink)
+                        where nf' i = Sink $ nf (f acc i) >>= sinkStatus >>= return . fun
+                  step n !acc = Cont (return . Sink . return . step (n-1) . f acc) (nf acc >>= closeSink)
 
 -- | Yield all elements of the array as seperate outputs.
 disperse :: Transform [a] a
 disperse sink = Sink $ liftM fun (sinkStatus sink)
     where fun (Done r) = Done r
-          fun (Cont _ cf) = Cont (disperse . flip feedList sink) cf
+          fun (Cont _ cf) = Cont (liftM disperse . flip feedList sink) cf
 
 
 -- | Drops the first n inputs then passes through all inputs unchanged
@@ -163,7 +164,7 @@ drop :: (Num n, Ord n) => n -> Transform a a
 drop n0 = mapSinkStatus fun
     where fun (Done r) = Done r
           fun (Cont nf cf) = Cont (step n0) cf
-            where step n i | n > 0     = contSink (step $ n-1) cf
+            where step n i | n > 0 = return $ contSink (step $ n-1) cf
                            | otherwise = nf i
 
 -- | Drops inputs until the predicate is matched. The matching input and all subsequent inputs
@@ -171,7 +172,7 @@ drop n0 = mapSinkStatus fun
 dropUntil :: (a -> Bool) -> Transform a a
 dropUntil p = mapSinkTransFun fun
     where fun nf cf i | p i       = nf i
-                      | otherwise = dropUntil p $ contSink nf cf
+                      | otherwise = return $ dropUntil p $ contSink nf cf
 
 -- | Drops inputs as long as they match the predicate. The first non-matching input and all
 -- following inputs are passed on unchanged.
@@ -182,15 +183,16 @@ dropWhile f = dropUntil (not . f)
 -- | Only retains elements that match the filter function
 filter :: (a -> Bool) -> Transform a a
 filter p = mapSinkTransFun fun
-    where fun nf cf i | p i       = filter p $ nf i
-                      | otherwise = filter p $ contSink nf cf
+    where fun nf cf i | p i       = liftM (filter p) (nf i)
+                      | otherwise = return $ filter p $ contSink nf cf
 
 -- | Map that allows to filter out elements.
 filterMap :: (a -> Maybe b) -> Transform a b
 filterMap f = mapSinkTransFun fun
     where fun nf cf i = case f i of
-                            (Just i') -> filterMap f $ nf i'
-                            Nothing   -> filterMap f $ contSink nf cf
+                            (Just i') -> liftM (filterMap f) (nf i')
+                            Nothing   -> return $ filterMap f $ contSink nf cf
+
 
 -- | Executes with t1 and when t1 ends, then the next input is fed to through t2.
 andThen :: Transform a b -> Transform a b -> Transform a b
@@ -199,17 +201,17 @@ andThen t1 t2 sink = Sink $ (>>= f) $ sinkStatus sink
           f (Cont _ _) = sinkStatus $ sinkUnwrap t2 $ t1 $ sinkWrap sink
 
 data WrapRes i m r = SinkIsDone (m r)
-                   | SinkIsCont (i -> Sink i m r) (m r)
+                   | SinkIsCont (i -> m (Sink i m r)) (m r)
 
 sinkUnwrap :: Monad m => Transform a b -> Sink a m (WrapRes b m r) -> Sink a m r
 sinkUnwrap t = Sink . (>>= handle) . sinkStatus
-    where handle (Cont nf cf) = return $ Cont (sinkUnwrap t . nf) (cf >>= unwrapRes)
+    where handle (Cont nf cf) = return $ Cont (liftM (sinkUnwrap t) . nf) (cf >>= unwrapRes)
           handle (Done r)     = liftM (t . recSink) r >>= sinkStatus
 
 sinkWrap :: Monad m => Sink i m r -> Sink i m (WrapRes i m r)
 sinkWrap = Sink . liftM f . sinkStatus
     where f (Done r)     = Done $ return $ SinkIsDone r
-          f (Cont nf cf) = Cont (sinkWrap . nf) (return $ SinkIsCont nf cf)
+          f (Cont nf cf) = Cont (liftM sinkWrap . nf) (return $ SinkIsCont nf cf)
 
 recSink :: Monad m => WrapRes i m r -> Sink i m r
 recSink (SinkIsDone r)     = doneSink r
@@ -218,7 +220,6 @@ recSink (SinkIsCont nf cf) = contSink nf cf
 unwrapRes :: Monad m => WrapRes i m r -> m r
 unwrapRes (SinkIsDone r)   = r
 unwrapRes (SinkIsCont _ r) = r
-
 
 -- | Executes the given transforms in a sequence, as soon as one ends the next input is
 --   passed to the next transform.
@@ -247,17 +248,17 @@ flatMap f = map f =$= disperse
 eitherRight :: Transform (Either a b) b
 eitherRight = mapSinkStatus f
     where f (Done r)     = Done r
-          f (Cont nf cf) = Cont (eitherRight . handle) cf
+          f (Cont nf cf) = Cont (liftM eitherRight . handle) cf
             where handle = either ignore nf
-                  ignore _ = contSink nf cf
+                  ignore _ = return $ contSink nf cf
 
 -- | Only lets the 'lefts' of Either pass.
 eitherLeft :: Transform (Either a b) a
 eitherLeft = mapSinkStatus f
     where f (Done r)     = Done r
-          f (Cont nf cf) = Cont (eitherLeft . handle) cf
+          f (Cont nf cf) = Cont (liftM eitherLeft . handle) cf
             where handle = either nf ignore
-                  ignore _ = contSink nf cf
+                  ignore _ = return $ contSink nf cf
 
 
 -- | Outputs every element received to the System-out (using putStrLn).
@@ -281,7 +282,7 @@ deserialize = deserialize' []
 
 deserialize' :: S.Serialize b => [ByteString -> S.Result b] -> Transform ByteString b
 deserialize' ips = mapSinkTransFun fun
-    where fun nf cf i = deserialize' ps' $ feedList bs $ contSink nf cf
+    where fun nf cf i = liftM (deserialize' ps') $ feedList bs (contSink nf cf)
             where (ps', bs) = tryToParse (S.runGetPartial S.get:ips) i
           tryToParse [] _ = ([],[])
           tryToParse (p:ps) i = case p i of
