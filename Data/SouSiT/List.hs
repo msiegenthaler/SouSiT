@@ -16,4 +16,4 @@ listSource l = FeedSource $ return . feedList l
 -- | A sink that collects all input into a list. Does never say SinkDone.
 listSink :: Monad m => Sink a m [a]
 listSink = step []
-    where step xs = contSink (step . (xs ++) . return) (return xs)
+    where step xs = contSink' (step . (xs ++) . return) (return xs)

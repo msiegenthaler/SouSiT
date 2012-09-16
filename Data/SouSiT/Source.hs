@@ -19,6 +19,7 @@ module Data.SouSiT.Source (
 import Data.SouSiT.Sink
 import Control.Exception (bracket)
 
+
 -- | Something that produces data to be processed by a sink
 class Source src where
     transfer :: Monad m => src m a -> Sink a m r -> m r
@@ -73,7 +74,7 @@ bracketActionSource open close f = FeedSource handle
 
 handleActionSource :: Monad m => m (Maybe i) -> Sink i m r -> m (Sink i m r)
 handleActionSource f !sink = sinkStatus sink >>= handleStatus
-    where handleStatus (Done _)    = return sink
+    where handleStatus (Done _) = return sink
           handleStatus (Cont nf _) = f >>= handleInput nf
           handleInput _  Nothing  = return sink
-          handleInput nf (Just i) = handleActionSource f (nf i)
+          handleInput nf (Just i) = nf i >>= handleActionSource f

@@ -13,11 +13,11 @@ import Control.Monad.Identity
 
 countSink :: (Num n, Monad m) => Sink a m n
 countSink = step 0
-  where step !n = contSink f (return n)
+  where step !n = contSink' f (return n)
           where f _ = step (n + 1)
 
 firstSink :: Monad m => Sink a m a
-firstSink = input'
+firstSink = input
 
 elemCountSource n = listSource [1..n]
 
