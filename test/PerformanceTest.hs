@@ -17,7 +17,7 @@ countSink = step 0
           where f _ = step (n + 1)
 
 firstSink :: Monad m => Sink a m a
-firstSink = input'
+firstSink = input
 
 elemCountSource n = listSource [1..n]
 
