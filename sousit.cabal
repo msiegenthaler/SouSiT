@@ -1,5 +1,5 @@
 name:                sousit
-version:             0.3.1
+version:             0.4
 synopsis:            Source/Sink/Transform: An alternative to lazy IO and iteratees.
 
 description:
