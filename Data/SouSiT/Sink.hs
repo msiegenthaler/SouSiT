@@ -4,8 +4,10 @@ module Data.SouSiT.Sink (
     SinkStatus(..),
     closeSink,
     -- * monadic functions
-    inputOr,
     input,
+    inputOr,
+    inputMap,
+    inputMaybe,
     skip,
     -- * utility functions
     appendSink,
@@ -66,6 +68,16 @@ closeSink (Sink st) = st >>= handle
 --   as the sinks result.
 inputOr :: Monad m => m a -> Sink a m a
 inputOr = contSink' doneSink'
+
+-- | Reads the next element. Returns (Just a) for the element or Nothing if the sink is closed
+--   before the input was available.
+inputMaybe :: Monad m => Sink a m (Maybe a)
+inputMaybe = inputMap (return . Just) (return Nothing)
+
+-- | Reads the next element. Returns (Just a) for the element or Nothing if the sink is closed
+--   before the input was available.
+inputMap :: Monad m => (a -> m b) -> m b -> Sink a m b
+inputMap f = contSink' (doneSink . f)
 
 -- | Reads the next element.
 --   The sink returns a fail if it is closed before the input is received.

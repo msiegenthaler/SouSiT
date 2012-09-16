@@ -4,6 +4,8 @@ module Data.SouSiT (
     Fetch,
     input,
     inputOr,
+    inputMap,
+    inputMaybe,
     skip,
     liftSink,
     liftFetch,
