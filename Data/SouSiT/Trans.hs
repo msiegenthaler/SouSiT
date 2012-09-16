@@ -156,7 +156,7 @@ buffer initN initAcc f = if initN > 0 then mapSinkStatus fun
 disperse :: Transform [a] a
 disperse sink = Sink $ liftM fun (sinkStatus sink)
     where fun (Done r) = Done r
-          fun (Cont _ cf) = Cont (return . disperse . flip feedList sink) cf
+          fun (Cont _ cf) = Cont (liftM disperse . flip feedList sink) cf
 
 
 -- | Drops the first n inputs then passes through all inputs unchanged
@@ -282,7 +282,7 @@ deserialize = deserialize' []
 
 deserialize' :: S.Serialize b => [ByteString -> S.Result b] -> Transform ByteString b
 deserialize' ips = mapSinkTransFun fun
-    where fun nf cf i = return $ deserialize' ps' $ feedList bs $ contSink nf cf
+    where fun nf cf i = liftM (deserialize' ps') $ feedList bs (contSink nf cf)
             where (ps', bs) = tryToParse (S.runGetPartial S.get:ips) i
           tryToParse [] _ = ([],[])
           tryToParse (p:ps) i = case p i of

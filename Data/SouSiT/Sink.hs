@@ -91,11 +91,11 @@ appendSink s1 s2 = do r1 <- s1
                       return $ mappend r1 r2
 
 -- | Feed a list of inputs to a sink.
-feedList :: Monad m => [i] -> Sink i m r -> Sink i m r
-feedList [] !s = s
-feedList (x:xs) !s = Sink $ sinkStatus s >>= step
-    where step (Done r) = return $ Done r
-          step (Cont f _) = liftM (feedList xs) (f x) >>= sinkStatus
+feedList :: Monad m => [i] -> Sink i m r -> m (Sink i m r)
+feedList [] !s = return s
+feedList (x:xs) !s = sinkStatus s >>= step
+    where step (Done r) = return s
+          step (Cont nf _) = nf x >>= feedList xs
 
 
 contSink :: Monad m => (i -> m (Sink i m r)) -> m r -> Sink i m r

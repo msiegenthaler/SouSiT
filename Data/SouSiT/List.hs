@@ -10,7 +10,7 @@ import Data.SouSiT.Sink
 
 -- | A source containing the elements of the list
 listSource :: Monad m => [a] -> FeedSource m a
-listSource l = FeedSource $ return . feedList l
+listSource l = FeedSource $ feedList l
 
 
 -- | A sink that collects all input into a list. Does never say SinkDone.
