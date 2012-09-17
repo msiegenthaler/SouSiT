@@ -106,7 +106,7 @@ appendSink s1 s2 = do r1 <- s1
 feedList :: Monad m => [i] -> Sink i m r -> m (Sink i m r)
 feedList [] !s = return s
 feedList (x:xs) !s = sinkStatus s >>= step
-    where step (Done r) = return s
+    where step (Done _) = return s
           step (Cont nf _) = nf x >>= feedList xs
 
 
